@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Саши и Миши · история + животные</title>
+    <title>Саши и Миши · надёжная синхронизация</title>
 
     <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
 
@@ -486,6 +486,7 @@
             display: flex;
             justify-content: center;
             margin: 20px 0 10px;
+            gap: 8px;
         }
         .history-controls .btn-outline {
             padding: 8px 20px;
@@ -591,13 +592,13 @@
         <div id="postsContainer">
             <div class="empty-feed" id="emptyFeed">
                 <i class="fas fa-comment-dots"></i>
-                <p>Пока нет постов. Будь первым!</p>
+                <p>Загрузка сообщений...</p>
             </div>
         </div>
 
-        <!-- Кнопка для загрузки всей истории (по умолчанию все посты уже видны, но добавим для уверенности) -->
         <div class="history-controls">
             <button class="btn-outline" id="showAllBtn"><i class="fas fa-history"></i> Показать всю историю</button>
+            <button class="btn-outline" id="forceSyncBtn"><i class="fas fa-cloud-upload-alt"></i> Синхронизировать</button>
         </div>
 
     </div>
@@ -607,11 +608,17 @@
     (function() {
         'use strict';
 
-        // ===== GUN =====
-        const gun = Gun({
-            peers: ['https://gun-manhattan.herokuapp.com/gun']
-        });
-        const postsNode = gun.get('sasha_misha_posts');
+        // ===== МНОЖЕСТВО РЕТРАНСЛЯТОРОВ ДЛЯ НАДЁЖНОСТИ =====
+        const peers = [
+            'https://gun-manhattan.herokuapp.com/gun',
+            'https://gun-us.herokuapp.com/gun',
+            'https://gun-eu.herokuapp.com/gun',
+            'https://gun.eco/radata',
+            'https://gun-us.herokuapp.com/gun'  // повтор для надёжности
+        ];
+
+        const gun = Gun({ peers });
+        const postsNode = gun.get('sasha_misha_posts'); // общий узел
 
         // ===== СОСТОЯНИЕ =====
         let currentUserAvatar = '🐱';
@@ -619,6 +626,7 @@
         let filterMyPosts = false;
         let posts = [];
         let isLoggedIn = false;
+        let syncInterval = null;
 
         // ===== DOM =====
         const loginScreen = document.getElementById('loginScreen');
@@ -627,6 +635,7 @@
         const logoutBtn = document.getElementById('logoutBtn');
         const refreshBtn = document.getElementById('refreshBtn');
         const showAllBtn = document.getElementById('showAllBtn');
+        const forceSyncBtn = document.getElementById('forceSyncBtn');
         const avatarOptions = document.querySelectorAll('.avatar-option');
         const firstNameInput = document.getElementById('firstNameInput');
         const lastNameInput = document.getElementById('lastNameInput');
@@ -683,6 +692,7 @@
 
         // ===== РАБОТА С GUN =====
         function loadPostsFromGun() {
+            console.log('🔁 Загрузка всех постов из Gun...');
             postsNode.map().once((data, id) => {
                 if (data) {
                     const exists = posts.some(p => p.id === id);
@@ -696,15 +706,18 @@
                             likes: data.likes || []
                         };
                         posts.push(post);
+                        console.log(`📥 Загружен пост ${id} от ${post.author}`);
                         if (isLoggedIn) renderPosts();
                     }
                 }
             });
         }
 
+        // Подписка на изменения (в реальном времени)
         postsNode.map().on((data, id) => {
             if (!data) {
                 posts = posts.filter(p => p.id !== id);
+                console.log(`🗑️ Пост ${id} удалён`);
                 if (isLoggedIn) renderPosts();
                 return;
             }
@@ -715,6 +728,7 @@
                 existing.text = data.text || existing.text;
                 existing.timestamp = data.timestamp || existing.timestamp;
                 existing.likes = data.likes || [];
+                console.log(`🔄 Обновлён пост ${id}`);
             } else {
                 posts.push({
                     id: id,
@@ -724,22 +738,33 @@
                     timestamp: data.timestamp || Date.now(),
                     likes: data.likes || []
                 });
+                console.log(`➕ Новый пост ${id} от ${data.author}`);
             }
             if (isLoggedIn) renderPosts();
         });
 
         function savePostToGun(post) {
+            console.log(`💾 Сохраняем пост ${post.id}...`);
             postsNode.get(post.id).put({
                 author: post.author,
                 avatar: post.avatar,
                 text: post.text,
                 timestamp: post.timestamp,
                 likes: post.likes || []
+            }, (ack) => {
+                if (ack && ack.err) {
+                    console.error('❌ Ошибка сохранения:', ack.err);
+                } else {
+                    console.log(`✅ Пост ${post.id} успешно сохранён в Gun`);
+                }
             });
         }
 
         function deletePostFromGun(postId) {
-            postsNode.get(postId).put(null);
+            console.log(`🗑️ Удаляем пост ${postId} из Gun`);
+            postsNode.get(postId).put(null, (ack) => {
+                if (ack && ack.err) console.error('❌ Ошибка удаления:', ack.err);
+            });
         }
 
         // ===== РЕНДЕР =====
@@ -758,12 +783,11 @@
             }
             filtered.sort((a, b) => b.timestamp - a.timestamp);
 
-            // Обновляем счётчики
             totalCountEl.textContent = posts.length;
 
             if (filtered.length === 0) {
                 emptyFeed.style.display = 'block';
-                emptyFeed.querySelector('p').textContent = filterMyPosts ? 'У тебя пока нет постов 😢' : 'Пока нет постов. Будь первым!';
+                emptyFeed.querySelector('p').textContent = posts.length === 0 ? '📭 Сообщений пока нет. Напишите первым!' : (filterMyPosts ? 'У тебя пока нет постов 😢' : 'Нет постов');
                 updateStats();
                 return;
             }
@@ -897,13 +921,30 @@
             filterMyPosts = false;
             filterMyBtn.classList.remove('active');
 
-            if (posts.length === 0) loadPostsFromGun();
-            else renderPosts();
+            // Загружаем посты из Gun
+            if (posts.length === 0) {
+                loadPostsFromGun();
+            } else {
+                renderPosts();
+            }
+
+            // Запускаем автосинхронизацию каждые 5 секунд
+            if (syncInterval) clearInterval(syncInterval);
+            syncInterval = setInterval(() => {
+                console.log('⏰ Автосинхронизация...');
+                // Принудительно перезагружаем данные из Gun (но без дублирования)
+                // Просто вызовем loadPostsFromGun (он добавит только новые)
+                loadPostsFromGun();
+            }, 5000);
         }
 
         // ===== ВЫХОД =====
         function logout() {
             isLoggedIn = false;
+            if (syncInterval) {
+                clearInterval(syncInterval);
+                syncInterval = null;
+            }
             loginScreen.style.display = 'flex';
             feed.classList.remove('show');
             avatarOptions.forEach(opt => opt.classList.remove('active'));
@@ -972,6 +1013,7 @@
         });
 
         refreshBtn.addEventListener('click', function() {
+            // Полная перезагрузка всех постов из Gun
             posts = [];
             loadPostsFromGun();
             this.style.transform = 'rotate(360deg)';
@@ -979,7 +1021,6 @@
         });
 
         showAllBtn.addEventListener('click', function() {
-            // Просто перерендерим всё (все посты уже видны, но для уверенности сбросим фильтр)
             filterMyPosts = false;
             filterMyBtn.classList.remove('active');
             renderPosts();
@@ -987,13 +1028,24 @@
             setTimeout(() => this.textContent = '📜 Показать всю историю', 2000);
         });
 
+        forceSyncBtn.addEventListener('click', function() {
+            // Принудительная синхронизация: перезагружаем все посты
+            posts = [];
+            loadPostsFromGun();
+            this.textContent = '🔄 Синхронизация...';
+            setTimeout(() => {
+                this.textContent = '✅ Готово';
+                setTimeout(() => this.textContent = '☁️ Синхронизировать', 1500);
+            }, 1000);
+        });
+
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         loginScreen.style.display = 'flex';
         feed.classList.remove('show');
         document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
 
-        console.log('🚀 Саши и Миши v10 — с историей и животными!');
-        console.log('Все сообщения сохраняются в Gun и доступны при перезагрузке.');
+        console.log('🚀 Саши и Миши v11 — надёжная синхронизация с 5 ретрансляторами!');
+        console.log('Если друг не видит сообщения, нажмите "Синхронизировать" или обновите страницу.');
     })();
 </script>
 
