@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Саши и Миши · надёжная синхронизация</title>
+    <title>Саши и Миши · P2P доставка</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
+    <!-- PeerJS для прямого соединения -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -13,7 +14,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 
     <style>
-        /* ===== все стили как в предыдущей версии ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
@@ -84,11 +84,13 @@
         }
         .dot-online { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block; animation: pulse 2s infinite; }
         .dot-offline { width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block; }
+        .dot-connecting { width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; display: inline-block; animation: pulse 1s infinite; }
         @keyframes pulse {
             0% { opacity: 0.6; transform: scale(0.9); }
             50% { opacity: 1; transform: scale(1.2); }
             100% { opacity: 0.6; transform: scale(0.9); }
         }
+
         .login-screen {
             display: flex;
             flex-direction: column;
@@ -482,15 +484,67 @@
             display: block;
             animation: fadeUp 0.3s ease;
         }
-        .history-controls {
+        .connection-panel {
+            background: rgba(255,255,255,0.02);
+            border-radius: 24px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.03);
             display: flex;
-            justify-content: center;
-            margin: 20px 0 10px;
-            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
         }
-        .history-controls .btn-outline {
-            padding: 8px 20px;
+        .connection-panel .peer-id {
             font-size: 14px;
+            color: rgba(255,255,255,0.4);
+            background: rgba(0,0,0,0.2);
+            padding: 6px 14px;
+            border-radius: 30px;
+            word-break: break-all;
+            flex: 1;
+            min-width: 100px;
+        }
+        .connection-panel .peer-id strong {
+            color: rgba(255,255,255,0.7);
+        }
+        .connection-panel input {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 30px;
+            padding: 8px 16px;
+            color: #f0f0f5;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            flex: 1;
+            min-width: 120px;
+        }
+        .connection-panel input:focus {
+            border-color: rgba(192,132,252,0.4);
+        }
+        .connection-panel .btn-connect {
+            background: rgba(192,132,252,0.15);
+            border: 1px solid rgba(192,132,252,0.2);
+            color: #c084fc;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+            white-space: nowrap;
+        }
+        .connection-panel .btn-connect:hover {
+            background: rgba(192,132,252,0.25);
+        }
+        .connection-panel .btn-connect:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .connection-panel .status-msg {
+            font-size: 13px;
+            color: rgba(255,255,255,0.3);
         }
         @media (max-width: 480px) {
             .app { padding: 22px 16px; border-radius: 32px; }
@@ -503,6 +557,8 @@
             .post-form textarea { font-size: 15px; min-height: 60px; }
             .feed-header .user-name { font-size: 17px; }
             .header-actions .btn-outline { font-size: 12px; padding: 6px 12px; }
+            .connection-panel { flex-direction: column; align-items: stretch; }
+            .connection-panel input { min-width: unset; }
         }
     </style>
 </head>
@@ -547,7 +603,7 @@
             </button>
         </div>
         <div class="login-hint">
-            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> только для Саш и Миш · реальный онлайн
+            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> только для Саш и Миш · P2P доставка
         </div>
     </div>
 
@@ -570,9 +626,16 @@
             </div>
             <div class="header-actions">
                 <button class="btn-outline" id="filterMyBtn"><i class="fas fa-user"></i> Мои</button>
-                <button class="btn-outline" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
                 <button class="btn-logout" id="logoutBtn"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i> Выйти</button>
             </div>
+        </div>
+
+        <!-- Панель подключения PeerJS -->
+        <div class="connection-panel" id="peerPanel">
+            <div class="peer-id" id="myPeerId">ID: <strong id="peerIdDisplay">—</strong></div>
+            <input type="text" id="friendIdInput" placeholder="ID друга" />
+            <button class="btn-connect" id="connectBtn">Подключиться</button>
+            <span class="status-msg" id="connectionStatusMsg">не подключен</span>
         </div>
 
         <div class="post-form">
@@ -596,11 +659,6 @@
             </div>
         </div>
 
-        <div class="history-controls">
-            <button class="btn-outline" id="showAllBtn"><i class="fas fa-history"></i> Показать всю историю</button>
-            <button class="btn-outline" id="forceSyncBtn"><i class="fas fa-cloud-upload-alt"></i> Синхронизировать</button>
-        </div>
-
     </div>
 </div>
 
@@ -608,34 +666,26 @@
     (function() {
         'use strict';
 
-        // ===== МНОЖЕСТВО РЕТРАНСЛЯТОРОВ ДЛЯ НАДЁЖНОСТИ =====
-        const peers = [
-            'https://gun-manhattan.herokuapp.com/gun',
-            'https://gun-us.herokuapp.com/gun',
-            'https://gun-eu.herokuapp.com/gun',
-            'https://gun.eco/radata',
-            'https://gun-us.herokuapp.com/gun'  // повтор для надёжности
-        ];
-
-        const gun = Gun({ peers });
-        const postsNode = gun.get('sasha_misha_posts'); // общий узел
-
         // ===== СОСТОЯНИЕ =====
         let currentUserAvatar = '🐱';
         let currentUserFullName = '';
         let filterMyPosts = false;
         let posts = [];
         let isLoggedIn = false;
-        let syncInterval = null;
+        let peer = null;          // PeerJS экземпляр
+        let conn = null;          // активное соединение
+        let myPeerId = '';
+        let isConnected = false;
+
+        // ===== КЛЮЧИ LOCALSTORAGE =====
+        const LS_POSTS_KEY = 'sasha_misha_posts_local_p2p';
+        const LS_USER_KEY = 'sasha_misha_user_p2p';
 
         // ===== DOM =====
         const loginScreen = document.getElementById('loginScreen');
         const feed = document.getElementById('feed');
         const loginBtn = document.getElementById('loginBtn');
         const logoutBtn = document.getElementById('logoutBtn');
-        const refreshBtn = document.getElementById('refreshBtn');
-        const showAllBtn = document.getElementById('showAllBtn');
-        const forceSyncBtn = document.getElementById('forceSyncBtn');
         const avatarOptions = document.querySelectorAll('.avatar-option');
         const firstNameInput = document.getElementById('firstNameInput');
         const lastNameInput = document.getElementById('lastNameInput');
@@ -652,17 +702,10 @@
         const emojiPicker = document.getElementById('emojiPicker');
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
-
-        // ===== СТАТУС =====
-        function setOnlineStatus(online) {
-            statusDot.className = online ? 'dot-online' : 'dot-offline';
-            statusText.textContent = online ? 'онлайн' : 'офлайн';
-        }
-        gun.on('hi', () => setOnlineStatus(true));
-        gun.on('bye', () => setOnlineStatus(false));
-        setInterval(() => {
-            gun.get('_ping').put({ time: Date.now() }, () => {});
-        }, 15000);
+        const peerIdDisplay = document.getElementById('peerIdDisplay');
+        const friendIdInput = document.getElementById('friendIdInput');
+        const connectBtn = document.getElementById('connectBtn');
+        const connectionStatusMsg = document.getElementById('connectionStatusMsg');
 
         // ===== ВСПОМОГАТЕЛЬНЫЕ =====
         function formatTime(ts) {
@@ -683,93 +726,49 @@
             return safe;
         }
 
-        // ===== ПРОВЕРКА ИМЕНИ =====
         function isValidName(firstName) {
             const lower = firstName.toLowerCase().trim();
             return lower.startsWith('саш') || lower === 'александр' || lower === 'саня' ||
                    lower.startsWith('миш') || lower === 'михаил' || lower === 'митя';
         }
 
-        // ===== РАБОТА С GUN =====
-        function loadPostsFromGun() {
-            console.log('🔁 Загрузка всех постов из Gun...');
-            postsNode.map().once((data, id) => {
+        // ===== РАБОТА С LOCALSTORAGE =====
+        function savePostsToLocalStorage() {
+            try {
+                localStorage.setItem(LS_POSTS_KEY, JSON.stringify(posts));
+            } catch (e) {}
+        }
+        function loadPostsFromLocalStorage() {
+            try {
+                const data = localStorage.getItem(LS_POSTS_KEY);
                 if (data) {
-                    const exists = posts.some(p => p.id === id);
-                    if (!exists) {
-                        const post = {
-                            id: id,
-                            author: data.author || 'Неизвестный',
-                            avatar: data.avatar || '🐱',
-                            text: data.text || '',
-                            timestamp: data.timestamp || Date.now(),
-                            likes: data.likes || []
-                        };
-                        posts.push(post);
-                        console.log(`📥 Загружен пост ${id} от ${post.author}`);
-                        if (isLoggedIn) renderPosts();
+                    const parsed = JSON.parse(data);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        posts = parsed;
+                        return true;
                     }
                 }
-            });
+            } catch (e) {}
+            return false;
         }
-
-        // Подписка на изменения (в реальном времени)
-        postsNode.map().on((data, id) => {
-            if (!data) {
-                posts = posts.filter(p => p.id !== id);
-                console.log(`🗑️ Пост ${id} удалён`);
-                if (isLoggedIn) renderPosts();
-                return;
-            }
-            const existing = posts.find(p => p.id === id);
-            if (existing) {
-                existing.author = data.author || existing.author;
-                existing.avatar = data.avatar || existing.avatar;
-                existing.text = data.text || existing.text;
-                existing.timestamp = data.timestamp || existing.timestamp;
-                existing.likes = data.likes || [];
-                console.log(`🔄 Обновлён пост ${id}`);
-            } else {
-                posts.push({
-                    id: id,
-                    author: data.author || 'Неизвестный',
-                    avatar: data.avatar || '🐱',
-                    text: data.text || '',
-                    timestamp: data.timestamp || Date.now(),
-                    likes: data.likes || []
-                });
-                console.log(`➕ Новый пост ${id} от ${data.author}`);
-            }
-            if (isLoggedIn) renderPosts();
-        });
-
-        function savePostToGun(post) {
-            console.log(`💾 Сохраняем пост ${post.id}...`);
-            postsNode.get(post.id).put({
-                author: post.author,
-                avatar: post.avatar,
-                text: post.text,
-                timestamp: post.timestamp,
-                likes: post.likes || []
-            }, (ack) => {
-                if (ack && ack.err) {
-                    console.error('❌ Ошибка сохранения:', ack.err);
-                } else {
-                    console.log(`✅ Пост ${post.id} успешно сохранён в Gun`);
+        function saveUserToLocalStorage(avatar, fullName) {
+            try {
+                localStorage.setItem(LS_USER_KEY, JSON.stringify({ avatar, fullName }));
+            } catch (e) {}
+        }
+        function loadUserFromLocalStorage() {
+            try {
+                const data = localStorage.getItem(LS_USER_KEY);
+                if (data) {
+                    const { avatar, fullName } = JSON.parse(data);
+                    if (avatar && fullName) return { avatar, fullName };
                 }
-            });
+            } catch (e) {}
+            return null;
         }
 
-        function deletePostFromGun(postId) {
-            console.log(`🗑️ Удаляем пост ${postId} из Gun`);
-            postsNode.get(postId).put(null, (ack) => {
-                if (ack && ack.err) console.error('❌ Ошибка удаления:', ack.err);
-            });
-        }
-
-        // ===== РЕНДЕР =====
+        // ===== РЕНДЕР ПОСТОВ =====
         function renderPosts() {
-            // очищаем
             const children = postsContainer.children;
             for (let i = children.length - 1; i >= 0; i--) {
                 if (children[i].id !== 'emptyFeed') {
@@ -854,22 +853,23 @@
             const idx = post.likes.indexOf(currentUserFullName);
             if (idx === -1) post.likes.push(currentUserFullName);
             else post.likes.splice(idx, 1);
-            postsNode.get(postId).put({
-                author: post.author,
-                avatar: post.avatar,
-                text: post.text,
-                timestamp: post.timestamp,
-                likes: post.likes
-            });
             renderPosts();
+            savePostsToLocalStorage();
+            // Отправляем обновление лайка через P2P, если есть соединение
+            if (isConnected && conn) {
+                conn.send({ type: 'like_update', postId, likes: post.likes });
+            }
         }
 
         // ===== УДАЛЕНИЕ =====
         function deletePost(postId) {
             if (confirm('Удалить пост?')) {
-                deletePostFromGun(postId);
                 posts = posts.filter(p => p.id !== postId);
                 renderPosts();
+                savePostsToLocalStorage();
+                if (isConnected && conn) {
+                    conn.send({ type: 'delete', postId });
+                }
             }
         }
 
@@ -890,10 +890,181 @@
             };
             posts.push(newPost);
             renderPosts();
-            savePostToGun(newPost);
+            savePostsToLocalStorage();
             postInput.value = '';
             postInput.focus();
+
+            // Отправляем через P2P
+            if (isConnected && conn) {
+                conn.send({ type: 'new_post', post: newPost });
+            } else {
+                console.warn('Нет подключения к другу, сообщение сохранено локально');
+            }
             return true;
+        }
+
+        // ===== ПРИЁМ СООБЩЕНИЙ ОТ ДРУГА =====
+        function handlePeerData(data) {
+            console.log('📨 Получены данные от друга:', data);
+            if (data.type === 'new_post') {
+                const post = data.post;
+                // Проверяем, нет ли уже такого поста (чтобы избежать дублирования)
+                const exists = posts.some(p => p.id === post.id);
+                if (!exists) {
+                    posts.push(post);
+                    renderPosts();
+                    savePostsToLocalStorage();
+                }
+            } else if (data.type === 'like_update') {
+                const post = posts.find(p => p.id === data.postId);
+                if (post) {
+                    post.likes = data.likes;
+                    renderPosts();
+                    savePostsToLocalStorage();
+                }
+            } else if (data.type === 'delete') {
+                posts = posts.filter(p => p.id !== data.postId);
+                renderPosts();
+                savePostsToLocalStorage();
+            }
+        }
+
+        // ===== PEERJS =====
+        function initPeer() {
+            // Генерируем случайный ID для сессии
+            const randomId = 'sasha-misha-' + Math.random().toString(36).substr(2, 8);
+            myPeerId = randomId;
+
+            peer = new Peer(randomId, {
+                debug: 2,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
+
+            peer.on('open', (id) => {
+                console.log('🔗 Peer открыт, ID:', id);
+                peerIdDisplay.textContent = id;
+                connectionStatusMsg.textContent = 'ожидание подключения';
+                statusDot.className = 'dot-online';
+                statusText.textContent = 'онлайн';
+            });
+
+            peer.on('connection', (incomingConn) => {
+                console.log('📞 Входящее соединение от:', incomingConn.peer);
+                conn = incomingConn;
+                setupConnection(conn);
+            });
+
+            peer.on('error', (err) => {
+                console.error('❌ Ошибка Peer:', err);
+                if (err.type === 'peer-unavailable') {
+                    connectionStatusMsg.textContent = '❌ Друг не в сети';
+                } else {
+                    connectionStatusMsg.textContent = '⚠️ Ошибка: ' + err.message;
+                }
+                statusDot.className = 'dot-offline';
+                statusText.textContent = 'ошибка';
+            });
+
+            peer.on('disconnected', () => {
+                console.log('🔌 Peer отключился');
+                connectionStatusMsg.textContent = 'отключен';
+                isConnected = false;
+                conn = null;
+                statusDot.className = 'dot-offline';
+                statusText.textContent = 'офлайн';
+            });
+        }
+
+        function setupConnection(connection) {
+            conn = connection;
+            conn.on('open', () => {
+                console.log('✅ Соединение установлено с:', conn.peer);
+                isConnected = true;
+                connectionStatusMsg.textContent = '✅ подключен к ' + conn.peer;
+                connectBtn.textContent = 'Отключиться';
+                statusDot.className = 'dot-online';
+                statusText.textContent = 'связан';
+                // Отправляем свою историю сообщений (для синхронизации)
+                // Отправим все посты, но чтобы не дублировать, лучше отправлять только свои
+                // Просто уведомим друга о том, что мы подключились
+                conn.send({ type: 'sync_request' });
+            });
+
+            conn.on('data', (data) => {
+                // Если пришёл запрос синхронизации — отправляем все свои посты
+                if (data.type === 'sync_request') {
+                    // Отправляем все посты, которые есть у нас (чтобы у друга они тоже были)
+                    // Но чтобы не засорять, отправим только те, которых у друга нет (можно через фильтр, но упростим)
+                    // Отправим все посты, а на стороне друга будет проверка на дубликаты
+                    posts.forEach(post => {
+                        conn.send({ type: 'new_post', post });
+                    });
+                    connectionStatusMsg.textContent = '✅ синхронизировано';
+                } else {
+                    handlePeerData(data);
+                }
+            });
+
+            conn.on('close', () => {
+                console.log('🔌 Соединение закрыто');
+                isConnected = false;
+                conn = null;
+                connectionStatusMsg.textContent = 'отключен';
+                connectBtn.textContent = 'Подключиться';
+                statusDot.className = 'dot-offline';
+                statusText.textContent = 'офлайн';
+            });
+
+            conn.on('error', (err) => {
+                console.error('❌ Ошибка соединения:', err);
+                connectionStatusMsg.textContent = '⚠️ ошибка соединения';
+            });
+        }
+
+        function connectToFriend(friendId) {
+            if (!peer) {
+                alert('Peer не инициализирован');
+                return;
+            }
+            if (conn && isConnected) {
+                // Отключаемся
+                conn.close();
+                conn = null;
+                isConnected = false;
+                connectionStatusMsg.textContent = 'отключен';
+                connectBtn.textContent = 'Подключиться';
+                statusDot.className = 'dot-offline';
+                statusText.textContent = 'офлайн';
+                return;
+            }
+
+            if (!friendId.trim()) {
+                alert('Введите ID друга');
+                return;
+            }
+
+            connectionStatusMsg.textContent = '⏳ подключение...';
+            connectBtn.disabled = true;
+            statusDot.className = 'dot-connecting';
+            statusText.textContent = 'соединение...';
+
+            const newConn = peer.connect(friendId.trim(), { reliable: true });
+            setupConnection(newConn);
+
+            // Таймаут на случай, если соединение не установится
+            setTimeout(() => {
+                connectBtn.disabled = false;
+                if (!isConnected) {
+                    connectionStatusMsg.textContent = '⏳ не удалось подключиться';
+                    statusDot.className = 'dot-offline';
+                    statusText.textContent = 'офлайн';
+                }
+            }, 10000);
         }
 
         // ===== ВХОД =====
@@ -912,6 +1083,8 @@
             currentUserAvatar = avatarEmoji;
             isLoggedIn = true;
 
+            saveUserToLocalStorage(avatarEmoji, fullName);
+
             currentUserAvatarEl.textContent = avatarEmoji;
             currentUserNameEl.innerHTML = `${escapeHtml(fullName)} <small id="userStatus"><span class="online-badge" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:4px;"></span> online</small>`;
 
@@ -921,29 +1094,36 @@
             filterMyPosts = false;
             filterMyBtn.classList.remove('active');
 
-            // Загружаем посты из Gun
-            if (posts.length === 0) {
-                loadPostsFromGun();
-            } else {
+            // Загружаем посты из localStorage
+            const hasLocal = loadPostsFromLocalStorage();
+            if (hasLocal) {
                 renderPosts();
+            } else {
+                renderPosts(); // пустой
             }
 
-            // Запускаем автосинхронизацию каждые 5 секунд
-            if (syncInterval) clearInterval(syncInterval);
-            syncInterval = setInterval(() => {
-                console.log('⏰ Автосинхронизация...');
-                // Принудительно перезагружаем данные из Gun (но без дублирования)
-                // Просто вызовем loadPostsFromGun (он добавит только новые)
-                loadPostsFromGun();
-            }, 5000);
+            // Инициализируем PeerJS
+            initPeer();
+
+            // Восстанавливаем ID друга из localStorage, если есть
+            const savedFriend = localStorage.getItem('sasha_misha_friend_id');
+            if (savedFriend) {
+                friendIdInput.value = savedFriend;
+                // Можно автоматически подключиться, но оставим ручное нажатие
+            }
         }
 
         // ===== ВЫХОД =====
         function logout() {
             isLoggedIn = false;
-            if (syncInterval) {
-                clearInterval(syncInterval);
-                syncInterval = null;
+            if (conn) {
+                conn.close();
+                conn = null;
+                isConnected = false;
+            }
+            if (peer) {
+                peer.destroy();
+                peer = null;
             }
             loginScreen.style.display = 'flex';
             feed.classList.remove('show');
@@ -954,6 +1134,26 @@
             filterMyPosts = false;
             filterMyBtn.classList.remove('active');
             errorMessage.classList.remove('show');
+            // Не очищаем localStorage
+        }
+
+        // ===== ВОССТАНОВЛЕНИЕ СЕССИИ =====
+        function restoreSession() {
+            const userData = loadUserFromLocalStorage();
+            if (userData && userData.fullName && userData.avatar) {
+                firstNameInput.value = userData.fullName.split(' ')[0] || '';
+                lastNameInput.value = userData.fullName.split(' ').slice(1).join(' ') || '';
+                avatarOptions.forEach(opt => {
+                    opt.classList.remove('active');
+                    if (opt.dataset.animal === userData.avatar) opt.classList.add('active');
+                });
+                console.log('👤 Найдены данные пользователя в localStorage. Нажмите "Войти" для восстановления.');
+            }
+            // Восстанавливаем ID друга
+            const savedFriend = localStorage.getItem('sasha_misha_friend_id');
+            if (savedFriend) {
+                friendIdInput.value = savedFriend;
+            }
         }
 
         // ===== ОБРАБОТЧИКИ =====
@@ -1012,31 +1212,23 @@
             textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
         });
 
-        refreshBtn.addEventListener('click', function() {
-            // Полная перезагрузка всех постов из Gun
-            posts = [];
-            loadPostsFromGun();
-            this.style.transform = 'rotate(360deg)';
-            setTimeout(() => this.style.transform = '', 400);
+        connectBtn.addEventListener('click', function() {
+            const friendId = friendIdInput.value.trim();
+            if (!friendId) {
+                alert('Введите ID друга (покажите ему свой ID и попросите его ID)');
+                return;
+            }
+            // Сохраняем ID друга в localStorage
+            localStorage.setItem('sasha_misha_friend_id', friendId);
+            connectToFriend(friendId);
         });
 
-        showAllBtn.addEventListener('click', function() {
-            filterMyPosts = false;
-            filterMyBtn.classList.remove('active');
-            renderPosts();
-            this.textContent = '✅ Вся история загружена';
-            setTimeout(() => this.textContent = '📜 Показать всю историю', 2000);
-        });
-
-        forceSyncBtn.addEventListener('click', function() {
-            // Принудительная синхронизация: перезагружаем все посты
-            posts = [];
-            loadPostsFromGun();
-            this.textContent = '🔄 Синхронизация...';
-            setTimeout(() => {
-                this.textContent = '✅ Готово';
-                setTimeout(() => this.textContent = '☁️ Синхронизировать', 1500);
-            }, 1000);
+        // Если пользователь нажал Enter в поле ввода ID друга
+        friendIdInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                connectBtn.click();
+            }
         });
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
@@ -1044,8 +1236,13 @@
         feed.classList.remove('show');
         document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
 
-        console.log('🚀 Саши и Миши v11 — надёжная синхронизация с 5 ретрансляторами!');
-        console.log('Если друг не видит сообщения, нажмите "Синхронизировать" или обновите страницу.');
+        restoreSession();
+
+        console.log('🚀 Саши и Миши v13 — P2P доставка через PeerJS!');
+        console.log('1. Войдите как Саша или Миша.');
+        console.log('2. Скопируйте свой ID и отправьте другу.');
+        console.log('3. Введите ID друга и нажмите "Подключиться".');
+        console.log('4. Общайтесь в реальном времени!');
     })();
 </script>
 
