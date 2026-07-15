@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Саши и Миши · надёжный Gun</title>
+    <title>Саши и Миши · чистота и надёжность</title>
 
-    <!-- Gun.js -->
     <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -14,7 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 
     <style>
-        /* ===== Стили (те же, что в финальной версии) ===== */
+        /* ===== Стили (прежние) ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
@@ -82,7 +81,6 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            cursor: default;
         }
         .dot-online { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block; animation: pulse 2s infinite; }
         .dot-offline { width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block; }
@@ -92,6 +90,19 @@
             50% { opacity: 1; transform: scale(1.2); }
             100% { opacity: 0.6; transform: scale(0.9); }
         }
+        .reconnect-btn {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.5);
+            padding: 4px 12px;
+            border-radius: 30px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+            margin-left: 8px;
+        }
+        .reconnect-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
 
         .login-screen {
             display: flex;
@@ -258,6 +269,7 @@
             display: flex;
             gap: 8px;
             align-items: center;
+            flex-wrap: wrap;
         }
         .btn-outline {
             background: rgba(255, 255, 255, 0.04);
@@ -278,6 +290,15 @@
             background: rgba(192, 132, 252, 0.15);
             border-color: rgba(192, 132, 252, 0.3);
             color: #c084fc;
+        }
+        .btn-danger {
+            background: rgba(255, 80, 80, 0.08);
+            border: 1px solid rgba(255, 80, 80, 0.15);
+            color: rgba(255, 80, 80, 0.6);
+        }
+        .btn-danger:hover {
+            background: rgba(255, 80, 80, 0.15);
+            color: #f87171;
         }
         .btn-logout {
             background: rgba(255, 255, 255, 0.04);
@@ -494,21 +515,6 @@
             animation: fadeUp 0.3s ease;
         }
 
-        /* Кнопка переподключения */
-        .reconnect-btn {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            color: rgba(255, 255, 255, 0.5);
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: 0.2s;
-            font-family: 'Inter', sans-serif;
-            margin-left: 8px;
-        }
-        .reconnect-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-
         @media (max-width: 480px) {
             .app { padding: 22px 16px; border-radius: 32px; }
             .brand h1 { font-size: 20px; }
@@ -565,7 +571,7 @@
             </button>
         </div>
         <div class="login-hint">
-            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> только для Саш и Миш · автосинхронизация
+            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> только для Саш и Миш · автообновление 2 сек
         </div>
     </div>
 
@@ -589,6 +595,7 @@
             <div class="header-actions">
                 <button class="btn-outline" id="filterMyBtn"><i class="fas fa-user"></i> Мои</button>
                 <button class="btn-outline" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
+                <button class="btn-outline btn-danger" id="clearChatBtn"><i class="fas fa-trash-alt"></i> Очистить чат</button>
                 <button class="btn-logout" id="logoutBtn"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i> Выйти</button>
             </div>
         </div>
@@ -622,45 +629,29 @@
         'use strict';
 
         // ============================================================
-        // 1. НАДЁЖНЫЕ РЕТРАНСЛЯТОРЫ (проверенные)
+        // 1. НАДЁЖНЫЕ РЕТРАНСЛЯТОРЫ (для Firefox и других)
         // ============================================================
         const peers = [
+            'https://gun.eco/radata',
             'https://gun-manhattan.herokuapp.com/gun',
             'https://gun-us.herokuapp.com/gun',
             'https://gun-eu.herokuapp.com/gun',
-            'https://gun.eco/radata',
-            'https://gun-nyc.herokuapp.com/gun',
-            'https://gun-mtl.herokuapp.com/gun'
+            'https://gun-nyc.herokuapp.com/gun'
         ];
 
-        // ============================================================
-        // 2. ИНИЦИАЛИЗАЦИЯ GUN С ПОВТОРНЫМИ ПОПЫТКАМИ
-        // ============================================================
-        let gun = null;
-        let postsNode = null;
-
-        function initGun() {
-            gun = Gun({ peers });
-            postsNode = gun.get('sasha_misha_posts');
-            return gun;
-        }
-
-        // Сначала инициализируем
-        initGun();
+        let gun = Gun({ peers });
+        let postsNode = gun.get('sasha_misha_posts');
 
         // ============================================================
-        // 3. СОСТОЯНИЕ
+        // 2. СОСТОЯНИЕ
         // ============================================================
-        let currentUser = {
-            name: '',
-            avatar: '🐱'
-        };
+        let currentUser = { name: '', avatar: '🐱' };
         let posts = [];
         let filterMy = false;
         let isLoggedIn = false;
 
         // ============================================================
-        // 4. DOM-элементы
+        // 3. DOM
         // ============================================================
         const loginScreen = document.getElementById('loginScreen');
         const feed = document.getElementById('feed');
@@ -668,6 +659,7 @@
         const logoutBtn = document.getElementById('logoutBtn');
         const refreshBtn = document.getElementById('refreshBtn');
         const reconnectBtn = document.getElementById('reconnectBtn');
+        const clearChatBtn = document.getElementById('clearChatBtn');
         const avatarOptions = document.querySelectorAll('.avatar-option');
         const firstNameInput = document.getElementById('firstNameInput');
         const lastNameInput = document.getElementById('lastNameInput');
@@ -686,7 +678,7 @@
         const statusText = document.getElementById('statusText');
 
         // ============================================================
-        // 5. СТАТУС ПОДКЛЮЧЕНИЯ (с повторными попытками)
+        // 4. СТАТУС
         // ============================================================
         let isOnline = false;
         let connectionAttempts = 0;
@@ -700,53 +692,34 @@
             } else {
                 statusDot.className = 'dot-offline';
                 statusText.textContent = 'офлайн';
-                // Пытаемся переподключиться через 5 секунд
                 if (connectionAttempts < 5) {
                     connectionAttempts++;
                     setTimeout(() => {
-                        console.log(`Попытка переподключения #${connectionAttempts}...`);
-                        // Пересоздаём Gun
                         gun = Gun({ peers });
                         postsNode = gun.get('sasha_misha_posts');
-                        // Переподписываемся
                         subscribeToGun();
-                        // Пытаемся отправить ping
                         gun.get('_ping').put({ time: Date.now() }, (ack) => {
-                            if (!ack || !ack.err) {
-                                setStatus(true);
-                            }
+                            if (!ack || !ack.err) setStatus(true);
                         });
                     }, 5000);
                 } else {
-                    statusText.textContent = 'офлайн (повторите позже)';
+                    statusText.textContent = 'офлайн (повторите)';
                 }
             }
         }
 
-        // Обработчики Gun
-        gun.on('hi', () => {
-            console.log('✅ Gun подключился');
-            setStatus(true);
-        });
-        gun.on('bye', () => {
-            console.log('❌ Gun отключился');
-            setStatus(false);
-        });
+        gun.on('hi', () => setStatus(true));
+        gun.on('bye', () => setStatus(false));
 
-        // Периодический ping для проверки соединения
         let pingInterval = setInterval(() => {
             if (gun) {
                 gun.get('_ping').put({ time: Date.now() }, (ack) => {
-                    if (ack && ack.err) {
-                        setStatus(false);
-                    } else {
-                        setStatus(true);
-                    }
+                    if (ack && ack.err) setStatus(false);
+                    else setStatus(true);
                 });
             }
         }, 10000);
 
-        // Ручное переподключение
         reconnectBtn.addEventListener('click', function() {
             setStatus(false);
             connectionAttempts = 0;
@@ -754,32 +727,25 @@
             postsNode = gun.get('sasha_misha_posts');
             subscribeToGun();
             gun.get('_ping').put({ time: Date.now() }, (ack) => {
-                if (!ack || !ack.err) {
-                    setStatus(true);
-                } else {
-                    setStatus(false);
-                }
+                if (!ack || !ack.err) setStatus(true);
+                else setStatus(false);
             });
             this.textContent = '⟳';
             setTimeout(() => { this.textContent = '⟳'; }, 1000);
         });
 
         // ============================================================
-        // 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // 5. ВСПОМОГАТЕЛЬНЫЕ
         // ============================================================
         function formatTime(ts) {
             const d = new Date(ts);
-            const h = String(d.getHours()).padStart(2, '0');
-            const m = String(d.getMinutes()).padStart(2, '0');
-            return `${h}:${m}`;
+            return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
         }
-
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-
         function renderPostText(text) {
             let safe = escapeHtml(text);
             const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
@@ -788,7 +754,6 @@
             });
             return safe;
         }
-
         function isValidName(firstName) {
             const lower = firstName.toLowerCase().trim();
             return lower.startsWith('саш') || lower === 'александр' || lower === 'саня' ||
@@ -796,14 +761,11 @@
         }
 
         // ============================================================
-        // 7. LOCALSTORAGE
+        // 6. LOCALSTORAGE
         // ============================================================
         function saveToLocalStorage() {
-            try {
-                localStorage.setItem('sasha_misha_posts', JSON.stringify(posts));
-            } catch (e) { /* ignore */ }
+            try { localStorage.setItem('sasha_misha_posts', JSON.stringify(posts)); } catch(e) {}
         }
-
         function loadFromLocalStorage() {
             try {
                 const data = localStorage.getItem('sasha_misha_posts');
@@ -814,16 +776,12 @@
                         return true;
                     }
                 }
-            } catch (e) { /* ignore */ }
+            } catch(e) {}
             return false;
         }
-
         function saveUserToLocalStorage(name, avatar) {
-            try {
-                localStorage.setItem('sasha_misha_user', JSON.stringify({ name, avatar }));
-            } catch (e) { /* ignore */ }
+            try { localStorage.setItem('sasha_misha_user', JSON.stringify({ name, avatar })); } catch(e) {}
         }
-
         function loadUserFromLocalStorage() {
             try {
                 const data = localStorage.getItem('sasha_misha_user');
@@ -831,27 +789,18 @@
                     const { name, avatar } = JSON.parse(data);
                     if (name && avatar) return { name, avatar };
                 }
-            } catch (e) { /* ignore */ }
+            } catch(e) {}
             return null;
         }
 
         // ============================================================
-        // 8. ОПЕРАЦИИ С ПОСТАМИ
+        // 7. ОПЕРАЦИИ С ПОСТАМИ
         // ============================================================
         function addPost(text) {
             const trimmed = text.trim();
-            if (!trimmed) {
-                alert('Напишите что-нибудь!');
-                return false;
-            }
-            if (trimmed.length > 500) {
-                alert('Максимум 500 символов');
-                return false;
-            }
-            if (!isLoggedIn) {
-                alert('Сначала войдите!');
-                return false;
-            }
+            if (!trimmed) { alert('Напишите что-нибудь!'); return false; }
+            if (trimmed.length > 500) { alert('Максимум 500 символов'); return false; }
+            if (!isLoggedIn) { alert('Сначала войдите!'); return false; }
 
             const newPost = {
                 id: Date.now() + '-' + Math.random().toString(36).substr(2, 6),
@@ -861,7 +810,6 @@
                 timestamp: Date.now(),
                 likes: []
             };
-
             posts.push(newPost);
             renderPosts();
             saveToLocalStorage();
@@ -873,12 +821,6 @@
                     text: newPost.text,
                     timestamp: newPost.timestamp,
                     likes: newPost.likes
-                }, (ack) => {
-                    if (ack && ack.err) {
-                        console.error('Ошибка сохранения в Gun:', ack.err);
-                    } else {
-                        console.log('Пост сохранён в Gun:', newPost.id);
-                    }
                 });
             }
 
@@ -892,20 +834,15 @@
             posts = posts.filter(p => p.id !== postId);
             renderPosts();
             saveToLocalStorage();
-            if (postsNode) {
-                postsNode.get(postId).put(null);
-            }
+            if (postsNode) postsNode.get(postId).put(null);
         }
 
         function toggleLike(postId) {
             const post = posts.find(p => p.id === postId);
             if (!post) return;
             const idx = post.likes.indexOf(currentUser.name);
-            if (idx === -1) {
-                post.likes.push(currentUser.name);
-            } else {
-                post.likes.splice(idx, 1);
-            }
+            if (idx === -1) post.likes.push(currentUser.name);
+            else post.likes.splice(idx, 1);
             if (postsNode) {
                 postsNode.get(postId).put({
                     author: post.author,
@@ -920,7 +857,97 @@
         }
 
         // ============================================================
-        // 9. РЕНДЕР
+        // 8. ОЧИСТКА ВСЕГО ЧАТА
+        // ============================================================
+        function clearAllChat() {
+            if (!confirm('Вы уверены, что хотите удалить ВСЕ сообщения у всех участников? Это действие необратимо!')) return;
+            // Очищаем локальный массив
+            posts = [];
+            renderPosts();
+            saveToLocalStorage();
+            // Удаляем все записи из Gun
+            if (postsNode) {
+                // Получаем все ключи и удаляем их
+                postsNode.map().once((data, id) => {
+                    if (id) {
+                        postsNode.get(id).put(null);
+                    }
+                });
+            }
+            alert('Чат очищен!');
+        }
+
+        // ============================================================
+        // 9. ЗАГРУЗКА НОВЫХ ПОСТОВ ИЗ GUN (АВТООПРОС)
+        // ============================================================
+        function loadNewPostsFromGun() {
+            if (!postsNode || !isLoggedIn) return;
+            postsNode.map().once((data, id) => {
+                if (!data) return;
+                const exists = posts.some(p => p.id === id);
+                if (!exists) {
+                    const post = {
+                        id: id,
+                        author: data.author || 'Неизвестный',
+                        avatar: data.avatar || '🐱',
+                        text: data.text || '',
+                        timestamp: data.timestamp || Date.now(),
+                        likes: data.likes || []
+                    };
+                    posts.push(post);
+                    renderPosts();
+                    saveToLocalStorage();
+                }
+            });
+        }
+
+        // ============================================================
+        // 10. ПОДПИСКА НА ИЗМЕНЕНИЯ (дополнительно)
+        // ============================================================
+        function subscribeToGun() {
+            if (!postsNode) return;
+            postsNode.map().on((data, id) => {
+                if (!data) {
+                    posts = posts.filter(p => p.id !== id);
+                    if (isLoggedIn) renderPosts();
+                    saveToLocalStorage();
+                    return;
+                }
+                const existing = posts.find(p => p.id === id);
+                if (existing) {
+                    existing.author = data.author || existing.author;
+                    existing.avatar = data.avatar || existing.avatar;
+                    existing.text = data.text || existing.text;
+                    existing.timestamp = data.timestamp || existing.timestamp;
+                    existing.likes = data.likes || [];
+                } else {
+                    posts.push({
+                        id: id,
+                        author: data.author || 'Неизвестный',
+                        avatar: data.avatar || '🐱',
+                        text: data.text || '',
+                        timestamp: data.timestamp || Date.now(),
+                        likes: data.likes || []
+                    });
+                }
+                if (isLoggedIn) renderPosts();
+                saveToLocalStorage();
+            });
+        }
+
+        subscribeToGun();
+
+        // ============================================================
+        // 11. АВТООБНОВЛЕНИЕ КАЖДЫЕ 2 СЕКУНДЫ
+        // ============================================================
+        let autoRefreshInterval = setInterval(() => {
+            if (isLoggedIn) {
+                loadNewPostsFromGun();
+            }
+        }, 2000);
+
+        // ============================================================
+        // 12. РЕНДЕР
         // ============================================================
         function renderPosts() {
             const children = postsContainer.children;
@@ -998,67 +1025,7 @@
         }
 
         // ============================================================
-        // 10. ПОДПИСКА НА ИЗМЕНЕНИЯ В GUN
-        // ============================================================
-        function subscribeToGun() {
-            if (!postsNode) return;
-            // Отписываемся от старых подписок (если есть) — просто пересоздаём
-            // В Gun это делается через удаление слушателя, но проще пересоздать ноду
-            postsNode.map().on((data, id) => {
-                if (!data) {
-                    posts = posts.filter(p => p.id !== id);
-                    if (isLoggedIn) renderPosts();
-                    saveToLocalStorage();
-                    return;
-                }
-                const existing = posts.find(p => p.id === id);
-                if (existing) {
-                    existing.author = data.author || existing.author;
-                    existing.avatar = data.avatar || existing.avatar;
-                    existing.text = data.text || existing.text;
-                    existing.timestamp = data.timestamp || existing.timestamp;
-                    existing.likes = data.likes || [];
-                } else {
-                    posts.push({
-                        id: id,
-                        author: data.author || 'Неизвестный',
-                        avatar: data.avatar || '🐱',
-                        text: data.text || '',
-                        timestamp: data.timestamp || Date.now(),
-                        likes: data.likes || []
-                    });
-                }
-                if (isLoggedIn) renderPosts();
-                saveToLocalStorage();
-            });
-        }
-
-        function loadFromGun() {
-            if (!postsNode) return;
-            postsNode.map().once((data, id) => {
-                if (data) {
-                    const exists = posts.some(p => p.id === id);
-                    if (!exists) {
-                        posts.push({
-                            id: id,
-                            author: data.author || 'Неизвестный',
-                            avatar: data.avatar || '🐱',
-                            text: data.text || '',
-                            timestamp: data.timestamp || Date.now(),
-                            likes: data.likes || []
-                        });
-                        if (isLoggedIn) renderPosts();
-                        saveToLocalStorage();
-                    }
-                }
-            });
-        }
-
-        // Подписываемся сразу после инициализации
-        subscribeToGun();
-
-        // ============================================================
-        // 11. ВХОД/ВЫХОД
+        // 13. ВХОД/ВЫХОД
         // ============================================================
         function login(avatar, firstName, lastName) {
             const name = firstName.trim();
@@ -1085,13 +1052,10 @@
             feed.classList.add('show');
 
             const hasLocal = loadFromLocalStorage();
-            if (hasLocal) {
-                renderPosts();
-            } else {
-                renderPosts();
-            }
-            // Загружаем из Gun
-            loadFromGun();
+            if (hasLocal) renderPosts();
+            else renderPosts();
+
+            loadNewPostsFromGun();
 
             filterMy = false;
             filterMyBtn.classList.remove('active');
@@ -1111,7 +1075,7 @@
         }
 
         // ============================================================
-        // 12. ОБРАБОТЧИКИ
+        // 14. ОБРАБОТЧИКИ
         // ============================================================
         avatarOptions.forEach(opt => {
             opt.addEventListener('click', function() {
@@ -1127,10 +1091,7 @@
             const avatar = active.dataset.animal;
             const firstName = firstNameInput.value;
             const lastName = lastNameInput.value;
-            if (!firstName.trim()) {
-                alert('Введите имя!');
-                return;
-            }
+            if (!firstName.trim()) { alert('Введите имя!'); return; }
             login(avatar, firstName, lastName);
         });
 
@@ -1158,6 +1119,8 @@
             renderPosts();
         });
 
+        clearChatBtn.addEventListener('click', clearAllChat);
+
         emojiPicker.addEventListener('click', function(e) {
             const btn = e.target.closest('.emoji-btn');
             if (!btn) return;
@@ -1172,20 +1135,13 @@
         });
 
         refreshBtn.addEventListener('click', function() {
-            posts = [];
-            loadFromGun();
-            setTimeout(() => {
-                if (posts.length === 0) {
-                    loadFromLocalStorage();
-                    renderPosts();
-                }
-            }, 2000);
+            loadNewPostsFromGun();
             this.style.transform = 'rotate(360deg)';
             setTimeout(() => this.style.transform = '', 400);
         });
 
         // ============================================================
-        // 13. ВОССТАНОВЛЕНИЕ СЕССИИ
+        // 15. ВОССТАНОВЛЕНИЕ СЕССИИ
         // ============================================================
         function restoreSession() {
             const userData = loadUserFromLocalStorage();
@@ -1201,7 +1157,7 @@
         }
 
         // ============================================================
-        // 14. СТАРТ
+        // 16. СТАРТ
         // ============================================================
         loginScreen.style.display = 'flex';
         feed.classList.remove('show');
@@ -1209,8 +1165,8 @@
 
         restoreSession();
 
-        console.log('🚀 Саши и Миши v16 — надёжный Gun с переподключением');
-        console.log('Если статус "офлайн", нажмите на кнопку ⟳ рядом со статусом.');
+        console.log('🚀 Саши и Миши v18 — с очисткой чата и поддержкой Firefox');
+        console.log('Кнопка "Очистить чат" удаляет все сообщения у всех участников.');
     })();
 </script>
 
