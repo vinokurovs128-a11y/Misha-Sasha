@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Саши и Миши · финальная версия</title>
+    <title>Саши и Миши · чистый Gun</title>
 
     <!-- Gun.js -->
     <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 
     <style>
+        /* ===== БАЗОВЫЕ СТИЛИ (модные, как в предыдущих версиях) ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
@@ -89,6 +90,7 @@
             50% { opacity: 1; transform: scale(1.2); }
             100% { opacity: 0.6; transform: scale(0.9); }
         }
+
         .login-screen {
             display: flex;
             flex-direction: column;
@@ -146,6 +148,7 @@
             color: rgba(255, 255, 255, 0.5);
         }
         .login-screen .avatar-option.active .label { color: #fff; }
+
         .login-form {
             width: 100%;
             max-width: 340px;
@@ -199,12 +202,14 @@
             border-radius: 30px;
             border: 1px dashed rgba(255, 255, 255, 0.04);
         }
+
         .feed { display: none; animation: fadeUp 0.5s ease; }
         .feed.show { display: block; }
         @keyframes fadeUp {
             0% { opacity: 0; transform: translateY(18px); }
             100% { opacity: 1; transform: translateY(0); }
         }
+
         .feed-header {
             display: flex;
             justify-content: space-between;
@@ -285,6 +290,7 @@
             font-family: 'Inter', sans-serif;
         }
         .btn-logout:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
         .post-form {
             background: rgba(255, 255, 255, 0.02);
             border-radius: 32px;
@@ -357,6 +363,7 @@
             box-shadow: 0 8px 28px rgba(139, 92, 246, 0.5);
         }
         .btn-post:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
         .post-card {
             background: rgba(255, 255, 255, 0.02);
             border-radius: 28px;
@@ -460,6 +467,7 @@
             border-radius: 30px;
         }
         .post-card .delete-btn:hover { color: rgba(255, 80, 80, 0.6); background: rgba(255, 80, 80, 0.06); }
+
         .empty-feed {
             text-align: center;
             padding: 50px 20px;
@@ -467,6 +475,7 @@
         }
         .empty-feed i { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
         .empty-feed p { font-size: 16px; }
+
         .error-message {
             color: #f87171;
             font-size: 14px;
@@ -482,16 +491,7 @@
             display: block;
             animation: fadeUp 0.3s ease;
         }
-        .history-controls {
-            display: flex;
-            justify-content: center;
-            margin: 20px 0 10px;
-            gap: 8px;
-        }
-        .history-controls .btn-outline {
-            padding: 8px 20px;
-            font-size: 14px;
-        }
+
         @media (max-width: 480px) {
             .app { padding: 22px 16px; border-radius: 32px; }
             .brand h1 { font-size: 20px; }
@@ -596,11 +596,6 @@
             </div>
         </div>
 
-        <div class="history-controls">
-            <button class="btn-outline" id="showAllBtn"><i class="fas fa-history"></i> Показать всю историю</button>
-            <button class="btn-outline" id="forceSyncBtn"><i class="fas fa-cloud-upload-alt"></i> Синхронизировать</button>
-        </div>
-
     </div>
 </div>
 
@@ -608,38 +603,37 @@
     (function() {
         'use strict';
 
-        // ===== МНОЖЕСТВО РЕТРАНСЛЯТОРОВ GUN =====
+        // ============================================================
+        // 1. ИНИЦИАЛИЗАЦИЯ GUN
+        // ============================================================
         const peers = [
             'https://gun-manhattan.herokuapp.com/gun',
             'https://gun-us.herokuapp.com/gun',
             'https://gun-eu.herokuapp.com/gun',
-            'https://gun.eco/radata',
-            'https://gun-manhattan.herokuapp.com/gun' // повтор для надёжности
+            'https://gun.eco/radata'
         ];
-
         const gun = Gun({ peers });
-        const postsNode = gun.get('sasha_misha_posts');
+        const postsNode = gun.get('sasha_misha_posts'); // общий узел для всех сообщений
 
-        // ===== СОСТОЯНИЕ =====
-        let currentUserAvatar = '🐱';
-        let currentUserFullName = '';
-        let filterMyPosts = false;
-        let posts = [];
+        // ============================================================
+        // 2. СОСТОЯНИЕ
+        // ============================================================
+        let currentUser = {
+            name: '',
+            avatar: '🐱'
+        };
+        let posts = [];            // все посты (локальный кэш)
+        let filterMy = false;      // фильтр "только мои"
         let isLoggedIn = false;
-        let syncInterval = null;
 
-        // ===== КЛЮЧИ LOCALSTORAGE =====
-        const LS_POSTS_KEY = 'sasha_misha_posts_local';
-        const LS_USER_KEY = 'sasha_misha_user';
-
-        // ===== DOM =====
+        // ============================================================
+        // 3. DOM-элементы
+        // ============================================================
         const loginScreen = document.getElementById('loginScreen');
         const feed = document.getElementById('feed');
         const loginBtn = document.getElementById('loginBtn');
         const logoutBtn = document.getElementById('logoutBtn');
         const refreshBtn = document.getElementById('refreshBtn');
-        const showAllBtn = document.getElementById('showAllBtn');
-        const forceSyncBtn = document.getElementById('forceSyncBtn');
         const avatarOptions = document.querySelectorAll('.avatar-option');
         const firstNameInput = document.getElementById('firstNameInput');
         const lastNameInput = document.getElementById('lastNameInput');
@@ -657,29 +651,25 @@
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
 
-        // ===== СТАТУС =====
-        function setOnlineStatus(online) {
-            statusDot.className = online ? 'dot-online' : 'dot-offline';
-            statusText.textContent = online ? 'онлайн' : 'офлайн';
-        }
-        gun.on('hi', () => setOnlineStatus(true));
-        gun.on('bye', () => setOnlineStatus(false));
-        setInterval(() => {
-            gun.get('_ping').put({ time: Date.now() }, () => {});
-        }, 15000);
-
-        // ===== ВСПОМОГАТЕЛЬНЫЕ =====
+        // ============================================================
+        // 4. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // ============================================================
         function formatTime(ts) {
             const d = new Date(ts);
-            return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+            const h = String(d.getHours()).padStart(2, '0');
+            const m = String(d.getMinutes()).padStart(2, '0');
+            return `${h}:${m}`;
         }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
+
         function renderPostText(text) {
             let safe = escapeHtml(text);
+            // YouTube: вставляем iframe
             const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
             safe = safe.replace(youtubeRegex, (match, videoId) => {
                 return `<iframe src="https://www.youtube.com/embed/${videoId}" allowfullscreen></iframe>`;
@@ -687,51 +677,225 @@
             return safe;
         }
 
-        // ===== ПРОВЕРКА ИМЕНИ =====
         function isValidName(firstName) {
             const lower = firstName.toLowerCase().trim();
             return lower.startsWith('саш') || lower === 'александр' || lower === 'саня' ||
                    lower.startsWith('миш') || lower === 'михаил' || lower === 'митя';
         }
 
-        // ===== LOCALSTORAGE =====
-        function savePostsToLocalStorage() {
+        // ============================================================
+        // 5. РАБОТА С LOCALSTORAGE (резервное кэширование)
+        // ============================================================
+        function saveToLocalStorage() {
             try {
-                localStorage.setItem(LS_POSTS_KEY, JSON.stringify(posts));
-            } catch (e) {}
+                localStorage.setItem('sasha_misha_posts', JSON.stringify(posts));
+            } catch (e) { /* ignore */ }
         }
-        function loadPostsFromLocalStorage() {
+
+        function loadFromLocalStorage() {
             try {
-                const data = localStorage.getItem(LS_POSTS_KEY);
+                const data = localStorage.getItem('sasha_misha_posts');
                 if (data) {
                     const parsed = JSON.parse(data);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
+                    if (Array.isArray(parsed) && parsed.length) {
                         posts = parsed;
                         return true;
                     }
                 }
-            } catch (e) {}
+            } catch (e) { /* ignore */ }
             return false;
         }
-        function saveUserToLocalStorage(avatar, fullName) {
+
+        function saveUserToLocalStorage(name, avatar) {
             try {
-                localStorage.setItem(LS_USER_KEY, JSON.stringify({ avatar, fullName }));
-            } catch (e) {}
+                localStorage.setItem('sasha_misha_user', JSON.stringify({ name, avatar }));
+            } catch (e) { /* ignore */ }
         }
+
         function loadUserFromLocalStorage() {
             try {
-                const data = localStorage.getItem(LS_USER_KEY);
+                const data = localStorage.getItem('sasha_misha_user');
                 if (data) {
-                    const { avatar, fullName } = JSON.parse(data);
-                    if (avatar && fullName) return { avatar, fullName };
+                    const { name, avatar } = JSON.parse(data);
+                    if (name && avatar) return { name, avatar };
                 }
-            } catch (e) {}
+            } catch (e) { /* ignore */ }
             return null;
         }
 
-        // ===== GUN =====
-        function loadPostsFromGun() {
-            console.log('🔁 Загрузка постов из Gun...');
+        // ============================================================
+        // 6. ОСНОВНЫЕ ОПЕРАЦИИ С ПОСТАМИ
+        // ============================================================
+
+        // Добавление нового поста (локально и в Gun)
+        function addPost(text) {
+            const trimmed = text.trim();
+            if (!trimmed) {
+                alert('Напишите что-нибудь!');
+                return false;
+            }
+            if (trimmed.length > 500) {
+                alert('Максимум 500 символов');
+                return false;
+            }
+            if (!isLoggedIn) {
+                alert('Сначала войдите!');
+                return false;
+            }
+
+            const newPost = {
+                id: Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+                author: currentUser.name,
+                avatar: currentUser.avatar,
+                text: trimmed,
+                timestamp: Date.now(),
+                likes: []
+            };
+
+            // Добавляем локально и рендерим
+            posts.push(newPost);
+            renderPosts();
+            saveToLocalStorage();
+
+            // Отправляем в Gun (асинхронно)
+            postsNode.get(newPost.id).put({
+                author: newPost.author,
+                avatar: newPost.avatar,
+                text: newPost.text,
+                timestamp: newPost.timestamp,
+                likes: newPost.likes
+            }, (ack) => {
+                if (ack && ack.err) {
+                    console.error('Ошибка сохранения в Gun:', ack.err);
+                } else {
+                    console.log('Пост сохранён в Gun:', newPost.id);
+                }
+            });
+
+            postInput.value = '';
+            postInput.focus();
+            return true;
+        }
+
+        // Удаление поста (только своим)
+        function deletePost(postId) {
+            if (!confirm('Удалить пост?')) return;
+            posts = posts.filter(p => p.id !== postId);
+            renderPosts();
+            saveToLocalStorage();
+            // Удаляем из Gun
+            postsNode.get(postId).put(null);
+        }
+
+        // Лайк/дизлайк
+        function toggleLike(postId) {
+            const post = posts.find(p => p.id === postId);
+            if (!post) return;
+            const idx = post.likes.indexOf(currentUser.name);
+            if (idx === -1) {
+                post.likes.push(currentUser.name);
+            } else {
+                post.likes.splice(idx, 1);
+            }
+            // Обновляем в Gun
+            postsNode.get(postId).put({
+                author: post.author,
+                avatar: post.avatar,
+                text: post.text,
+                timestamp: post.timestamp,
+                likes: post.likes
+            });
+            renderPosts();
+            saveToLocalStorage();
+        }
+
+        // ============================================================
+        // 7. РЕНДЕР ЛЕНТЫ
+        // ============================================================
+        function renderPosts() {
+            // Очищаем контейнер, но оставляем emptyFeed
+            const children = postsContainer.children;
+            for (let i = children.length - 1; i >= 0; i--) {
+                if (children[i].id !== 'emptyFeed') {
+                    children[i].remove();
+                }
+            }
+
+            // Фильтр и сортировка
+            let filtered = [...posts];
+            if (filterMy && isLoggedIn) {
+                filtered = filtered.filter(p => p.author === currentUser.name);
+            }
+            filtered.sort((a, b) => b.timestamp - a.timestamp);
+
+            // Обновляем счётчики
+            totalCountEl.textContent = posts.length;
+            if (isLoggedIn) {
+                const myPosts = posts.filter(p => p.author === currentUser.name).length;
+                postCountEl.textContent = myPosts;
+            } else {
+                postCountEl.textContent = '0';
+            }
+
+            if (filtered.length === 0) {
+                emptyFeed.style.display = 'block';
+                emptyFeed.querySelector('p').textContent =
+                    posts.length === 0 ? '📭 Сообщений пока нет. Напишите первым!' :
+                    (filterMy ? 'У тебя пока нет постов 😢' : 'Нет постов');
+                return;
+            }
+            emptyFeed.style.display = 'none';
+
+            // Рендерим карточки
+            filtered.forEach(post => {
+                const card = document.createElement('div');
+                card.className = 'post-card';
+                card.dataset.id = post.id;
+
+                const isAuthor = isLoggedIn && (post.author === currentUser.name);
+                const avatarEmoji = post.avatar || '🐱';
+                const renderedText = renderPostText(post.text);
+
+                card.innerHTML = `
+                    <div class="post-header">
+                        <div class="post-avatar" style="background: rgba(255,255,255,0.05);">${avatarEmoji}</div>
+                        <span class="post-author">${escapeHtml(post.author)} <small>${avatarEmoji}</small></span>
+                        <span class="post-time">${formatTime(post.timestamp)}</span>
+                    </div>
+                    <div class="post-text">${renderedText}</div>
+                    <div class="post-footer">
+                        <button class="like-btn ${post.likes.includes(currentUser.name) ? 'liked' : ''}" data-postid="${post.id}">
+                            <i class="fas fa-heart"></i>
+                            <span class="like-count">${post.likes.length}</span>
+                        </button>
+                        ${isAuthor ? `<button class="delete-btn" data-postid="${post.id}"><i class="fas fa-trash-alt"></i></button>` : ''}
+                    </div>
+                `;
+
+                postsContainer.appendChild(card);
+
+                // Обработчики для лайка и удаления
+                const likeBtn = card.querySelector('.like-btn');
+                if (likeBtn) {
+                    likeBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        toggleLike(this.dataset.postid);
+                    });
+                }
+                const deleteBtn = card.querySelector('.delete-btn');
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        deletePost(this.dataset.postid);
+                    });
+                }
+            });
+        }
+
+        // ============================================================
+        // 8. ЗАГРУЗКА ДАННЫХ ИЗ GUN (подписка)
+        // ============================================================
+        function loadFromGun() {
             postsNode.map().once((data, id) => {
                 if (data) {
                     const exists = posts.some(p => p.id === id);
@@ -746,20 +910,22 @@
                         };
                         posts.push(post);
                         if (isLoggedIn) renderPosts();
-                        savePostsToLocalStorage();
+                        saveToLocalStorage();
                     }
                 }
             });
         }
 
-        // Подписка на изменения
+        // Подписка на изменения в реальном времени
         postsNode.map().on((data, id) => {
             if (!data) {
+                // Пост удалён
                 posts = posts.filter(p => p.id !== id);
                 if (isLoggedIn) renderPosts();
-                savePostsToLocalStorage();
+                saveToLocalStorage();
                 return;
             }
+            // Обновление или добавление
             const existing = posts.find(p => p.id === id);
             if (existing) {
                 existing.author = data.author || existing.author;
@@ -778,161 +944,16 @@
                 });
             }
             if (isLoggedIn) renderPosts();
-            savePostsToLocalStorage();
+            saveToLocalStorage();
         });
 
-        function savePostToGun(post) {
-            postsNode.get(post.id).put({
-                author: post.author,
-                avatar: post.avatar,
-                text: post.text,
-                timestamp: post.timestamp,
-                likes: post.likes || []
-            }, (ack) => {
-                if (ack && ack.err) console.error('❌ Gun ошибка:', ack.err);
-                else console.log(`✅ Пост ${post.id} сохранён в Gun`);
-            });
-        }
-
-        function deletePostFromGun(postId) {
-            postsNode.get(postId).put(null);
-        }
-
-        // ===== РЕНДЕР =====
-        function renderPosts() {
-            const children = postsContainer.children;
-            for (let i = children.length - 1; i >= 0; i--) {
-                if (children[i].id !== 'emptyFeed') {
-                    children[i].remove();
-                }
-            }
-
-            let filtered = [...posts];
-            if (filterMyPosts && currentUserFullName) {
-                filtered = filtered.filter(p => p.author === currentUserFullName);
-            }
-            filtered.sort((a, b) => b.timestamp - a.timestamp);
-
-            totalCountEl.textContent = posts.length;
-
-            if (filtered.length === 0) {
-                emptyFeed.style.display = 'block';
-                emptyFeed.querySelector('p').textContent = posts.length === 0 ? '📭 Сообщений пока нет. Напишите первым!' : (filterMyPosts ? 'У тебя пока нет постов 😢' : 'Нет постов');
-                updateStats();
-                return;
-            }
-            emptyFeed.style.display = 'none';
-
-            filtered.forEach((post) => {
-                const card = document.createElement('div');
-                card.className = 'post-card';
-                card.dataset.id = post.id;
-
-                const isAuthor = post.author === currentUserFullName;
-                const avatarEmoji = post.avatar || '🐱';
-                const renderedText = renderPostText(post.text);
-
-                card.innerHTML = `
-                    <div class="post-header">
-                        <div class="post-avatar" style="background: rgba(255,255,255,0.05);">${avatarEmoji}</div>
-                        <span class="post-author">${escapeHtml(post.author)} <small>${avatarEmoji}</small></span>
-                        <span class="post-time">${formatTime(post.timestamp)}</span>
-                    </div>
-                    <div class="post-text">${renderedText}</div>
-                    <div class="post-footer">
-                        <button class="like-btn ${post.likes.includes(currentUserFullName) ? 'liked' : ''}" data-postid="${post.id}">
-                            <i class="fas fa-heart"></i>
-                            <span class="like-count">${post.likes.length}</span>
-                        </button>
-                        ${isAuthor ? `<button class="delete-btn" data-postid="${post.id}"><i class="fas fa-trash-alt"></i></button>` : ''}
-                    </div>
-                `;
-
-                postsContainer.appendChild(card);
-
-                const likeBtn = card.querySelector('.like-btn');
-                if (likeBtn) {
-                    likeBtn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        const id = this.dataset.postid;
-                        toggleLike(id);
-                    });
-                }
-                const deleteBtn = card.querySelector('.delete-btn');
-                if (deleteBtn) {
-                    deleteBtn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        const id = this.dataset.postid;
-                        deletePost(id);
-                    });
-                }
-            });
-
-            updateStats();
-        }
-
-        function updateStats() {
-            if (!currentUserFullName) return;
-            const myPosts = posts.filter(p => p.author === currentUserFullName).length;
-            postCountEl.textContent = myPosts;
-        }
-
-        // ===== ЛАЙК =====
-        function toggleLike(postId) {
-            const post = posts.find(p => p.id === postId);
-            if (!post) return;
-            const idx = post.likes.indexOf(currentUserFullName);
-            if (idx === -1) post.likes.push(currentUserFullName);
-            else post.likes.splice(idx, 1);
-            postsNode.get(postId).put({
-                author: post.author,
-                avatar: post.avatar,
-                text: post.text,
-                timestamp: post.timestamp,
-                likes: post.likes
-            });
-            renderPosts();
-            savePostsToLocalStorage();
-        }
-
-        // ===== УДАЛЕНИЕ =====
-        function deletePost(postId) {
-            if (confirm('Удалить пост?')) {
-                deletePostFromGun(postId);
-                posts = posts.filter(p => p.id !== postId);
-                renderPosts();
-                savePostsToLocalStorage();
-            }
-        }
-
-        // ===== ДОБАВЛЕНИЕ =====
-        function addPost(text) {
-            const trimmed = text.trim();
-            if (!trimmed) { alert('Напишите что-нибудь!'); return false; }
-            if (trimmed.length > 500) { alert('Максимум 500 символов'); return false; }
-            if (!currentUserFullName) { alert('Сначала войдите!'); return false; }
-
-            const newPost = {
-                id: Date.now() + '-' + Math.random().toString(36).substr(2, 6),
-                author: currentUserFullName,
-                avatar: currentUserAvatar,
-                text: trimmed,
-                timestamp: Date.now(),
-                likes: []
-            };
-            posts.push(newPost);
-            renderPosts();
-            savePostsToLocalStorage();
-            savePostToGun(newPost);
-            postInput.value = '';
-            postInput.focus();
-            return true;
-        }
-
-        // ===== ВХОД =====
-        function login(avatarEmoji, firstName, lastName) {
+        // ============================================================
+        // 9. ВХОД И ВЫХОД
+        // ============================================================
+        function login(avatar, firstName, lastName) {
             const name = firstName.trim();
             const surname = lastName.trim() || '';
+
             if (!isValidName(name)) {
                 errorMessage.textContent = '⚠️ Имя должно быть Саша или Миша (или производные: Александр, Михаил, Саня, Митя)';
                 errorMessage.classList.add('show');
@@ -941,65 +962,55 @@
             errorMessage.classList.remove('show');
 
             const fullName = surname ? `${name} ${surname}` : name;
-            currentUserFullName = fullName;
-            currentUserAvatar = avatarEmoji;
+            currentUser.name = fullName;
+            currentUser.avatar = avatar;
             isLoggedIn = true;
 
-            saveUserToLocalStorage(avatarEmoji, fullName);
+            // Сохраняем пользователя в localStorage
+            saveUserToLocalStorage(fullName, avatar);
 
-            currentUserAvatarEl.textContent = avatarEmoji;
+            // Обновляем шапку
+            currentUserAvatarEl.textContent = avatar;
             currentUserNameEl.innerHTML = `${escapeHtml(fullName)} <small id="userStatus"><span class="online-badge" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:4px;"></span> online</small>`;
 
             loginScreen.style.display = 'none';
             feed.classList.add('show');
-            postInput.value = '';
-            filterMyPosts = false;
+
+            // Загружаем посты: сначала из localStorage, потом из Gun
+            const hasLocal = loadFromLocalStorage();
+            if (hasLocal) {
+                renderPosts();
+            } else {
+                renderPosts(); // пустая лента
+            }
+            // Загружаем из Gun (добавит новые)
+            loadFromGun();
+
+            // Сбрасываем фильтр
+            filterMy = false;
             filterMyBtn.classList.remove('active');
-
-            // Загружаем из localStorage и Gun
-            const hasLocal = loadPostsFromLocalStorage();
-            if (hasLocal) renderPosts();
-            loadPostsFromGun();
-
-            // Автосинхронизация каждые 5 секунд
-            if (syncInterval) clearInterval(syncInterval);
-            syncInterval = setInterval(() => {
-                loadPostsFromGun();
-            }, 5000);
         }
 
-        // ===== ВЫХОД =====
         function logout() {
             isLoggedIn = false;
-            if (syncInterval) {
-                clearInterval(syncInterval);
-                syncInterval = null;
-            }
+            currentUser.name = '';
+            currentUser.avatar = '🐱';
             loginScreen.style.display = 'flex';
             feed.classList.remove('show');
+            // Сбрасываем выбор аватара
             avatarOptions.forEach(opt => opt.classList.remove('active'));
             document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
-            currentUserAvatar = '🐱';
-            currentUserFullName = '';
-            filterMyPosts = false;
+            filterMy = false;
             filterMyBtn.classList.remove('active');
             errorMessage.classList.remove('show');
+            // Не очищаем посты, они останутся в памяти и localStorage
         }
 
-        // ===== ВОССТАНОВЛЕНИЕ СЕССИИ =====
-        function restoreSession() {
-            const userData = loadUserFromLocalStorage();
-            if (userData && userData.fullName && userData.avatar) {
-                firstNameInput.value = userData.fullName.split(' ')[0] || '';
-                lastNameInput.value = userData.fullName.split(' ').slice(1).join(' ') || '';
-                avatarOptions.forEach(opt => {
-                    opt.classList.remove('active');
-                    if (opt.dataset.animal === userData.avatar) opt.classList.add('active');
-                });
-            }
-        }
+        // ============================================================
+        // 10. ОБРАБОТЧИКИ СОБЫТИЙ
+        // ============================================================
 
-        // ===== ОБРАБОТЧИКИ =====
+        // Выбор аватара
         avatarOptions.forEach(opt => {
             opt.addEventListener('click', function() {
                 avatarOptions.forEach(o => o.classList.remove('active'));
@@ -1008,23 +1019,30 @@
             });
         });
 
+        // Кнопка входа
         loginBtn.addEventListener('click', function() {
             const active = document.querySelector('.avatar-option.active');
             if (!active) return;
             const avatar = active.dataset.animal;
             const firstName = firstNameInput.value;
             const lastName = lastNameInput.value;
-            if (!firstName.trim()) { alert('Введите имя!'); return; }
+            if (!firstName.trim()) {
+                alert('Введите имя!');
+                return;
+            }
             login(avatar, firstName, lastName);
         });
 
+        // Кнопка выхода
         logoutBtn.addEventListener('click', logout);
 
+        // Кнопка "Опубликовать"
         postBtn.addEventListener('click', function(e) {
             e.preventDefault();
             addPost(postInput.value);
         });
 
+        // Отправка по Enter (и Ctrl+Enter)
         postInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
                 e.preventDefault();
@@ -1035,13 +1053,15 @@
             }
         });
 
+        // Фильтр "Мои"
         filterMyBtn.addEventListener('click', function() {
-            if (!currentUserFullName) return;
-            filterMyPosts = !filterMyPosts;
+            if (!isLoggedIn) return;
+            filterMy = !filterMy;
             this.classList.toggle('active');
             renderPosts();
         });
 
+        // Вставка эмодзи
         emojiPicker.addEventListener('click', function(e) {
             const btn = e.target.closest('.emoji-btn');
             if (!btn) return;
@@ -1055,42 +1075,66 @@
             textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
         });
 
+        // Принудительное обновление
         refreshBtn.addEventListener('click', function() {
+            // Перезагружаем всё из Gun
             posts = [];
-            loadPostsFromGun();
-            setTimeout(savePostsToLocalStorage, 500);
+            loadFromGun();
+            // Также подгружаем из localStorage, если Gun не ответит
+            setTimeout(() => {
+                if (posts.length === 0) {
+                    loadFromLocalStorage();
+                    renderPosts();
+                }
+            }, 2000);
             this.style.transform = 'rotate(360deg)';
             setTimeout(() => this.style.transform = '', 400);
         });
 
-        showAllBtn.addEventListener('click', function() {
-            filterMyPosts = false;
-            filterMyBtn.classList.remove('active');
-            renderPosts();
-            this.textContent = '✅ Вся история загружена';
-            setTimeout(() => this.textContent = '📜 Показать всю историю', 2000);
+        // ============================================================
+        // 11. СТАТУС ПОДКЛЮЧЕНИЯ
+        // ============================================================
+        gun.on('hi', () => {
+            statusDot.className = 'dot-online';
+            statusText.textContent = 'онлайн';
         });
-
-        forceSyncBtn.addEventListener('click', function() {
-            posts = [];
-            loadPostsFromGun();
-            setTimeout(() => {
-                savePostsToLocalStorage();
-                renderPosts();
-                this.textContent = '✅ Готово';
-                setTimeout(() => this.textContent = '☁️ Синхронизировать', 1500);
-            }, 1000);
+        gun.on('bye', () => {
+            statusDot.className = 'dot-offline';
+            statusText.textContent = 'офлайн';
         });
+        // Периодический ping для поддержания статуса
+        setInterval(() => {
+            gun.get('_ping').put({ time: Date.now() }, () => {});
+        }, 15000);
 
-        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        // ============================================================
+        // 12. ВОССТАНОВЛЕНИЕ СЕССИИ ПРИ ЗАГРУЗКЕ
+        // ============================================================
+        function restoreSession() {
+            const userData = loadUserFromLocalStorage();
+            if (userData && userData.name && userData.avatar) {
+                firstNameInput.value = userData.name.split(' ')[0] || '';
+                lastNameInput.value = userData.name.split(' ').slice(1).join(' ') || '';
+                avatarOptions.forEach(opt => {
+                    opt.classList.remove('active');
+                    if (opt.dataset.animal === userData.avatar) opt.classList.add('active');
+                });
+                // Не входим автоматически — пусть пользователь нажмёт кнопку
+                console.log('👤 Данные пользователя найдены. Нажмите "Войти" для входа.');
+            }
+        }
+
+        // ============================================================
+        // 13. СТАРТ
+        // ============================================================
         loginScreen.style.display = 'flex';
         feed.classList.remove('show');
         document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
 
         restoreSession();
 
-        console.log('🚀 Саши и Миши v14 — финальная версия на Gun.js с автосинхронизацией!');
-        console.log('Просто войдите и пишите — всё работает автоматически.');
+        console.log('🚀 Саши и Миши v15 — полностью переработанная система на Gun.js');
+        console.log('Войдите под именем Саша или Миша, и ваши сообщения увидят все!');
     })();
 </script>
 
