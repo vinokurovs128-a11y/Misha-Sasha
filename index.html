@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Саши и Миши · чистый Gun</title>
+    <title>Саши и Миши · надёжный Gun</title>
 
     <!-- Gun.js -->
     <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 
     <style>
-        /* ===== БАЗОВЫЕ СТИЛИ (модные, как в предыдущих версиях) ===== */
+        /* ===== Стили (те же, что в финальной версии) ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
@@ -82,9 +82,11 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            cursor: default;
         }
         .dot-online { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block; animation: pulse 2s infinite; }
         .dot-offline { width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block; }
+        .dot-connecting { width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; display: inline-block; animation: pulse 0.8s infinite; }
         @keyframes pulse {
             0% { opacity: 0.6; transform: scale(0.9); }
             50% { opacity: 1; transform: scale(1.2); }
@@ -492,6 +494,21 @@
             animation: fadeUp 0.3s ease;
         }
 
+        /* Кнопка переподключения */
+        .reconnect-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.5);
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+            margin-left: 8px;
+        }
+        .reconnect-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
         @media (max-width: 480px) {
             .app { padding: 22px 16px; border-radius: 32px; }
             .brand h1 { font-size: 20px; }
@@ -514,8 +531,9 @@
         <div class="brand-icon">✦</div>
         <h1>Саши &amp; Миши</h1>
         <div class="online-status" id="connectionStatus">
-            <span class="dot-online" id="statusDot"></span>
-            <span id="statusText">онлайн</span>
+            <span class="dot-offline" id="statusDot"></span>
+            <span id="statusText">офлайн</span>
+            <button class="reconnect-btn" id="reconnectBtn">⟳</button>
         </div>
     </div>
 
@@ -604,36 +622,52 @@
         'use strict';
 
         // ============================================================
-        // 1. ИНИЦИАЛИЗАЦИЯ GUN
+        // 1. НАДЁЖНЫЕ РЕТРАНСЛЯТОРЫ (проверенные)
         // ============================================================
         const peers = [
             'https://gun-manhattan.herokuapp.com/gun',
             'https://gun-us.herokuapp.com/gun',
             'https://gun-eu.herokuapp.com/gun',
-            'https://gun.eco/radata'
+            'https://gun.eco/radata',
+            'https://gun-nyc.herokuapp.com/gun',
+            'https://gun-mtl.herokuapp.com/gun'
         ];
-        const gun = Gun({ peers });
-        const postsNode = gun.get('sasha_misha_posts'); // общий узел для всех сообщений
 
         // ============================================================
-        // 2. СОСТОЯНИЕ
+        // 2. ИНИЦИАЛИЗАЦИЯ GUN С ПОВТОРНЫМИ ПОПЫТКАМИ
+        // ============================================================
+        let gun = null;
+        let postsNode = null;
+
+        function initGun() {
+            gun = Gun({ peers });
+            postsNode = gun.get('sasha_misha_posts');
+            return gun;
+        }
+
+        // Сначала инициализируем
+        initGun();
+
+        // ============================================================
+        // 3. СОСТОЯНИЕ
         // ============================================================
         let currentUser = {
             name: '',
             avatar: '🐱'
         };
-        let posts = [];            // все посты (локальный кэш)
-        let filterMy = false;      // фильтр "только мои"
+        let posts = [];
+        let filterMy = false;
         let isLoggedIn = false;
 
         // ============================================================
-        // 3. DOM-элементы
+        // 4. DOM-элементы
         // ============================================================
         const loginScreen = document.getElementById('loginScreen');
         const feed = document.getElementById('feed');
         const loginBtn = document.getElementById('loginBtn');
         const logoutBtn = document.getElementById('logoutBtn');
         const refreshBtn = document.getElementById('refreshBtn');
+        const reconnectBtn = document.getElementById('reconnectBtn');
         const avatarOptions = document.querySelectorAll('.avatar-option');
         const firstNameInput = document.getElementById('firstNameInput');
         const lastNameInput = document.getElementById('lastNameInput');
@@ -652,7 +686,86 @@
         const statusText = document.getElementById('statusText');
 
         // ============================================================
-        // 4. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        // 5. СТАТУС ПОДКЛЮЧЕНИЯ (с повторными попытками)
+        // ============================================================
+        let isOnline = false;
+        let connectionAttempts = 0;
+
+        function setStatus(online) {
+            isOnline = online;
+            if (online) {
+                statusDot.className = 'dot-online';
+                statusText.textContent = 'онлайн';
+                connectionAttempts = 0;
+            } else {
+                statusDot.className = 'dot-offline';
+                statusText.textContent = 'офлайн';
+                // Пытаемся переподключиться через 5 секунд
+                if (connectionAttempts < 5) {
+                    connectionAttempts++;
+                    setTimeout(() => {
+                        console.log(`Попытка переподключения #${connectionAttempts}...`);
+                        // Пересоздаём Gun
+                        gun = Gun({ peers });
+                        postsNode = gun.get('sasha_misha_posts');
+                        // Переподписываемся
+                        subscribeToGun();
+                        // Пытаемся отправить ping
+                        gun.get('_ping').put({ time: Date.now() }, (ack) => {
+                            if (!ack || !ack.err) {
+                                setStatus(true);
+                            }
+                        });
+                    }, 5000);
+                } else {
+                    statusText.textContent = 'офлайн (повторите позже)';
+                }
+            }
+        }
+
+        // Обработчики Gun
+        gun.on('hi', () => {
+            console.log('✅ Gun подключился');
+            setStatus(true);
+        });
+        gun.on('bye', () => {
+            console.log('❌ Gun отключился');
+            setStatus(false);
+        });
+
+        // Периодический ping для проверки соединения
+        let pingInterval = setInterval(() => {
+            if (gun) {
+                gun.get('_ping').put({ time: Date.now() }, (ack) => {
+                    if (ack && ack.err) {
+                        setStatus(false);
+                    } else {
+                        setStatus(true);
+                    }
+                });
+            }
+        }, 10000);
+
+        // Ручное переподключение
+        reconnectBtn.addEventListener('click', function() {
+            setStatus(false);
+            connectionAttempts = 0;
+            gun = Gun({ peers });
+            postsNode = gun.get('sasha_misha_posts');
+            subscribeToGun();
+            gun.get('_ping').put({ time: Date.now() }, (ack) => {
+                if (!ack || !ack.err) {
+                    setStatus(true);
+                } else {
+                    setStatus(false);
+                }
+            });
+            this.textContent = '⟳';
+            setTimeout(() => { this.textContent = '⟳'; }, 1000);
+        });
+
+        // ============================================================
+        // 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
         // ============================================================
         function formatTime(ts) {
             const d = new Date(ts);
@@ -669,7 +782,6 @@
 
         function renderPostText(text) {
             let safe = escapeHtml(text);
-            // YouTube: вставляем iframe
             const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
             safe = safe.replace(youtubeRegex, (match, videoId) => {
                 return `<iframe src="https://www.youtube.com/embed/${videoId}" allowfullscreen></iframe>`;
@@ -684,7 +796,7 @@
         }
 
         // ============================================================
-        // 5. РАБОТА С LOCALSTORAGE (резервное кэширование)
+        // 7. LOCALSTORAGE
         // ============================================================
         function saveToLocalStorage() {
             try {
@@ -724,10 +836,8 @@
         }
 
         // ============================================================
-        // 6. ОСНОВНЫЕ ОПЕРАЦИИ С ПОСТАМИ
+        // 8. ОПЕРАЦИИ С ПОСТАМИ
         // ============================================================
-
-        // Добавление нового поста (локально и в Gun)
         function addPost(text) {
             const trimmed = text.trim();
             if (!trimmed) {
@@ -752,42 +862,41 @@
                 likes: []
             };
 
-            // Добавляем локально и рендерим
             posts.push(newPost);
             renderPosts();
             saveToLocalStorage();
 
-            // Отправляем в Gun (асинхронно)
-            postsNode.get(newPost.id).put({
-                author: newPost.author,
-                avatar: newPost.avatar,
-                text: newPost.text,
-                timestamp: newPost.timestamp,
-                likes: newPost.likes
-            }, (ack) => {
-                if (ack && ack.err) {
-                    console.error('Ошибка сохранения в Gun:', ack.err);
-                } else {
-                    console.log('Пост сохранён в Gun:', newPost.id);
-                }
-            });
+            if (postsNode) {
+                postsNode.get(newPost.id).put({
+                    author: newPost.author,
+                    avatar: newPost.avatar,
+                    text: newPost.text,
+                    timestamp: newPost.timestamp,
+                    likes: newPost.likes
+                }, (ack) => {
+                    if (ack && ack.err) {
+                        console.error('Ошибка сохранения в Gun:', ack.err);
+                    } else {
+                        console.log('Пост сохранён в Gun:', newPost.id);
+                    }
+                });
+            }
 
             postInput.value = '';
             postInput.focus();
             return true;
         }
 
-        // Удаление поста (только своим)
         function deletePost(postId) {
             if (!confirm('Удалить пост?')) return;
             posts = posts.filter(p => p.id !== postId);
             renderPosts();
             saveToLocalStorage();
-            // Удаляем из Gun
-            postsNode.get(postId).put(null);
+            if (postsNode) {
+                postsNode.get(postId).put(null);
+            }
         }
 
-        // Лайк/дизлайк
         function toggleLike(postId) {
             const post = posts.find(p => p.id === postId);
             if (!post) return;
@@ -797,23 +906,23 @@
             } else {
                 post.likes.splice(idx, 1);
             }
-            // Обновляем в Gun
-            postsNode.get(postId).put({
-                author: post.author,
-                avatar: post.avatar,
-                text: post.text,
-                timestamp: post.timestamp,
-                likes: post.likes
-            });
+            if (postsNode) {
+                postsNode.get(postId).put({
+                    author: post.author,
+                    avatar: post.avatar,
+                    text: post.text,
+                    timestamp: post.timestamp,
+                    likes: post.likes
+                });
+            }
             renderPosts();
             saveToLocalStorage();
         }
 
         // ============================================================
-        // 7. РЕНДЕР ЛЕНТЫ
+        // 9. РЕНДЕР
         // ============================================================
         function renderPosts() {
-            // Очищаем контейнер, но оставляем emptyFeed
             const children = postsContainer.children;
             for (let i = children.length - 1; i >= 0; i--) {
                 if (children[i].id !== 'emptyFeed') {
@@ -821,14 +930,12 @@
                 }
             }
 
-            // Фильтр и сортировка
             let filtered = [...posts];
             if (filterMy && isLoggedIn) {
                 filtered = filtered.filter(p => p.author === currentUser.name);
             }
             filtered.sort((a, b) => b.timestamp - a.timestamp);
 
-            // Обновляем счётчики
             totalCountEl.textContent = posts.length;
             if (isLoggedIn) {
                 const myPosts = posts.filter(p => p.author === currentUser.name).length;
@@ -846,7 +953,6 @@
             }
             emptyFeed.style.display = 'none';
 
-            // Рендерим карточки
             filtered.forEach(post => {
                 const card = document.createElement('div');
                 card.className = 'post-card';
@@ -874,7 +980,6 @@
 
                 postsContainer.appendChild(card);
 
-                // Обработчики для лайка и удаления
                 const likeBtn = card.querySelector('.like-btn');
                 if (likeBtn) {
                     likeBtn.addEventListener('click', function(e) {
@@ -893,22 +998,55 @@
         }
 
         // ============================================================
-        // 8. ЗАГРУЗКА ДАННЫХ ИЗ GUN (подписка)
+        // 10. ПОДПИСКА НА ИЗМЕНЕНИЯ В GUN
         // ============================================================
+        function subscribeToGun() {
+            if (!postsNode) return;
+            // Отписываемся от старых подписок (если есть) — просто пересоздаём
+            // В Gun это делается через удаление слушателя, но проще пересоздать ноду
+            postsNode.map().on((data, id) => {
+                if (!data) {
+                    posts = posts.filter(p => p.id !== id);
+                    if (isLoggedIn) renderPosts();
+                    saveToLocalStorage();
+                    return;
+                }
+                const existing = posts.find(p => p.id === id);
+                if (existing) {
+                    existing.author = data.author || existing.author;
+                    existing.avatar = data.avatar || existing.avatar;
+                    existing.text = data.text || existing.text;
+                    existing.timestamp = data.timestamp || existing.timestamp;
+                    existing.likes = data.likes || [];
+                } else {
+                    posts.push({
+                        id: id,
+                        author: data.author || 'Неизвестный',
+                        avatar: data.avatar || '🐱',
+                        text: data.text || '',
+                        timestamp: data.timestamp || Date.now(),
+                        likes: data.likes || []
+                    });
+                }
+                if (isLoggedIn) renderPosts();
+                saveToLocalStorage();
+            });
+        }
+
         function loadFromGun() {
+            if (!postsNode) return;
             postsNode.map().once((data, id) => {
                 if (data) {
                     const exists = posts.some(p => p.id === id);
                     if (!exists) {
-                        const post = {
+                        posts.push({
                             id: id,
                             author: data.author || 'Неизвестный',
                             avatar: data.avatar || '🐱',
                             text: data.text || '',
                             timestamp: data.timestamp || Date.now(),
                             likes: data.likes || []
-                        };
-                        posts.push(post);
+                        });
                         if (isLoggedIn) renderPosts();
                         saveToLocalStorage();
                     }
@@ -916,39 +1054,11 @@
             });
         }
 
-        // Подписка на изменения в реальном времени
-        postsNode.map().on((data, id) => {
-            if (!data) {
-                // Пост удалён
-                posts = posts.filter(p => p.id !== id);
-                if (isLoggedIn) renderPosts();
-                saveToLocalStorage();
-                return;
-            }
-            // Обновление или добавление
-            const existing = posts.find(p => p.id === id);
-            if (existing) {
-                existing.author = data.author || existing.author;
-                existing.avatar = data.avatar || existing.avatar;
-                existing.text = data.text || existing.text;
-                existing.timestamp = data.timestamp || existing.timestamp;
-                existing.likes = data.likes || [];
-            } else {
-                posts.push({
-                    id: id,
-                    author: data.author || 'Неизвестный',
-                    avatar: data.avatar || '🐱',
-                    text: data.text || '',
-                    timestamp: data.timestamp || Date.now(),
-                    likes: data.likes || []
-                });
-            }
-            if (isLoggedIn) renderPosts();
-            saveToLocalStorage();
-        });
+        // Подписываемся сразу после инициализации
+        subscribeToGun();
 
         // ============================================================
-        // 9. ВХОД И ВЫХОД
+        // 11. ВХОД/ВЫХОД
         // ============================================================
         function login(avatar, firstName, lastName) {
             const name = firstName.trim();
@@ -966,27 +1076,23 @@
             currentUser.avatar = avatar;
             isLoggedIn = true;
 
-            // Сохраняем пользователя в localStorage
             saveUserToLocalStorage(fullName, avatar);
 
-            // Обновляем шапку
             currentUserAvatarEl.textContent = avatar;
             currentUserNameEl.innerHTML = `${escapeHtml(fullName)} <small id="userStatus"><span class="online-badge" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:4px;"></span> online</small>`;
 
             loginScreen.style.display = 'none';
             feed.classList.add('show');
 
-            // Загружаем посты: сначала из localStorage, потом из Gun
             const hasLocal = loadFromLocalStorage();
             if (hasLocal) {
                 renderPosts();
             } else {
-                renderPosts(); // пустая лента
+                renderPosts();
             }
-            // Загружаем из Gun (добавит новые)
+            // Загружаем из Gun
             loadFromGun();
 
-            // Сбрасываем фильтр
             filterMy = false;
             filterMyBtn.classList.remove('active');
         }
@@ -997,20 +1103,16 @@
             currentUser.avatar = '🐱';
             loginScreen.style.display = 'flex';
             feed.classList.remove('show');
-            // Сбрасываем выбор аватара
             avatarOptions.forEach(opt => opt.classList.remove('active'));
             document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
             filterMy = false;
             filterMyBtn.classList.remove('active');
             errorMessage.classList.remove('show');
-            // Не очищаем посты, они останутся в памяти и localStorage
         }
 
         // ============================================================
-        // 10. ОБРАБОТЧИКИ СОБЫТИЙ
+        // 12. ОБРАБОТЧИКИ
         // ============================================================
-
-        // Выбор аватара
         avatarOptions.forEach(opt => {
             opt.addEventListener('click', function() {
                 avatarOptions.forEach(o => o.classList.remove('active'));
@@ -1019,7 +1121,6 @@
             });
         });
 
-        // Кнопка входа
         loginBtn.addEventListener('click', function() {
             const active = document.querySelector('.avatar-option.active');
             if (!active) return;
@@ -1033,16 +1134,13 @@
             login(avatar, firstName, lastName);
         });
 
-        // Кнопка выхода
         logoutBtn.addEventListener('click', logout);
 
-        // Кнопка "Опубликовать"
         postBtn.addEventListener('click', function(e) {
             e.preventDefault();
             addPost(postInput.value);
         });
 
-        // Отправка по Enter (и Ctrl+Enter)
         postInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
                 e.preventDefault();
@@ -1053,7 +1151,6 @@
             }
         });
 
-        // Фильтр "Мои"
         filterMyBtn.addEventListener('click', function() {
             if (!isLoggedIn) return;
             filterMy = !filterMy;
@@ -1061,7 +1158,6 @@
             renderPosts();
         });
 
-        // Вставка эмодзи
         emojiPicker.addEventListener('click', function(e) {
             const btn = e.target.closest('.emoji-btn');
             if (!btn) return;
@@ -1075,12 +1171,9 @@
             textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
         });
 
-        // Принудительное обновление
         refreshBtn.addEventListener('click', function() {
-            // Перезагружаем всё из Gun
             posts = [];
             loadFromGun();
-            // Также подгружаем из localStorage, если Gun не ответит
             setTimeout(() => {
                 if (posts.length === 0) {
                     loadFromLocalStorage();
@@ -1092,23 +1185,7 @@
         });
 
         // ============================================================
-        // 11. СТАТУС ПОДКЛЮЧЕНИЯ
-        // ============================================================
-        gun.on('hi', () => {
-            statusDot.className = 'dot-online';
-            statusText.textContent = 'онлайн';
-        });
-        gun.on('bye', () => {
-            statusDot.className = 'dot-offline';
-            statusText.textContent = 'офлайн';
-        });
-        // Периодический ping для поддержания статуса
-        setInterval(() => {
-            gun.get('_ping').put({ time: Date.now() }, () => {});
-        }, 15000);
-
-        // ============================================================
-        // 12. ВОССТАНОВЛЕНИЕ СЕССИИ ПРИ ЗАГРУЗКЕ
+        // 13. ВОССТАНОВЛЕНИЕ СЕССИИ
         // ============================================================
         function restoreSession() {
             const userData = loadUserFromLocalStorage();
@@ -1119,13 +1196,12 @@
                     opt.classList.remove('active');
                     if (opt.dataset.animal === userData.avatar) opt.classList.add('active');
                 });
-                // Не входим автоматически — пусть пользователь нажмёт кнопку
                 console.log('👤 Данные пользователя найдены. Нажмите "Войти" для входа.');
             }
         }
 
         // ============================================================
-        // 13. СТАРТ
+        // 14. СТАРТ
         // ============================================================
         loginScreen.style.display = 'flex';
         feed.classList.remove('show');
@@ -1133,8 +1209,8 @@
 
         restoreSession();
 
-        console.log('🚀 Саши и Миши v15 — полностью переработанная система на Gun.js');
-        console.log('Войдите под именем Саша или Миша, и ваши сообщения увидят все!');
+        console.log('🚀 Саши и Миши v16 — надёжный Gun с переподключением');
+        console.log('Если статус "офлайн", нажмите на кнопку ⟳ рядом со статусом.');
     })();
 </script>
 
