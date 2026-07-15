@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Саши и Миши · с сохранением в localStorage</title>
+    <title>Саши и Миши · надёжная синхронизация</title>
 
     <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
 
@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 
     <style>
-        /* ===== все стили как в предыдущей версии (модные) ===== */
+        /* ===== все стили как в предыдущей версии ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
@@ -608,17 +608,17 @@
     (function() {
         'use strict';
 
-        // ===== МНОЖЕСТВО РЕТРАНСЛЯТОРОВ =====
+        // ===== МНОЖЕСТВО РЕТРАНСЛЯТОРОВ ДЛЯ НАДЁЖНОСТИ =====
         const peers = [
             'https://gun-manhattan.herokuapp.com/gun',
             'https://gun-us.herokuapp.com/gun',
             'https://gun-eu.herokuapp.com/gun',
             'https://gun.eco/radata',
-            'https://gun-us.herokuapp.com/gun'
+            'https://gun-us.herokuapp.com/gun'  // повтор для надёжности
         ];
 
         const gun = Gun({ peers });
-        const postsNode = gun.get('sasha_misha_posts');
+        const postsNode = gun.get('sasha_misha_posts'); // общий узел
 
         // ===== СОСТОЯНИЕ =====
         let currentUserAvatar = '🐱';
@@ -627,10 +627,6 @@
         let posts = [];
         let isLoggedIn = false;
         let syncInterval = null;
-
-        // ===== КЛЮЧИ ДЛЯ LOCALSTORAGE =====
-        const LS_POSTS_KEY = 'sasha_misha_posts_local';
-        const LS_USER_KEY = 'sasha_misha_user';
 
         // ===== DOM =====
         const loginScreen = document.getElementById('loginScreen');
@@ -694,55 +690,9 @@
                    lower.startsWith('миш') || lower === 'михаил' || lower === 'митя';
         }
 
-        // ===== РАБОТА С LOCALSTORAGE =====
-        function savePostsToLocalStorage() {
-            try {
-                localStorage.setItem(LS_POSTS_KEY, JSON.stringify(posts));
-                console.log('💾 Посты сохранены в localStorage');
-            } catch (e) {
-                console.warn('⚠️ Не удалось сохранить в localStorage', e);
-            }
-        }
-
-        function loadPostsFromLocalStorage() {
-            try {
-                const data = localStorage.getItem(LS_POSTS_KEY);
-                if (data) {
-                    const parsed = JSON.parse(data);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        posts = parsed;
-                        console.log(`📂 Загружено ${posts.length} постов из localStorage`);
-                        return true;
-                    }
-                }
-            } catch (e) {
-                console.warn('⚠️ Ошибка загрузки из localStorage', e);
-            }
-            return false;
-        }
-
-        function saveUserToLocalStorage(avatar, fullName) {
-            try {
-                localStorage.setItem(LS_USER_KEY, JSON.stringify({ avatar, fullName }));
-            } catch (e) {}
-        }
-
-        function loadUserFromLocalStorage() {
-            try {
-                const data = localStorage.getItem(LS_USER_KEY);
-                if (data) {
-                    const { avatar, fullName } = JSON.parse(data);
-                    if (avatar && fullName) {
-                        return { avatar, fullName };
-                    }
-                }
-            } catch (e) {}
-            return null;
-        }
-
         // ===== РАБОТА С GUN =====
         function loadPostsFromGun() {
-            console.log('🔁 Загрузка постов из Gun...');
+            console.log('🔁 Загрузка всех постов из Gun...');
             postsNode.map().once((data, id) => {
                 if (data) {
                     const exists = posts.some(p => p.id === id);
@@ -758,20 +708,17 @@
                         posts.push(post);
                         console.log(`📥 Загружен пост ${id} от ${post.author}`);
                         if (isLoggedIn) renderPosts();
-                        // Сохраняем в localStorage при каждом добавлении
-                        savePostsToLocalStorage();
                     }
                 }
             });
         }
 
-        // Подписка на изменения
+        // Подписка на изменения (в реальном времени)
         postsNode.map().on((data, id) => {
             if (!data) {
                 posts = posts.filter(p => p.id !== id);
                 console.log(`🗑️ Пост ${id} удалён`);
                 if (isLoggedIn) renderPosts();
-                savePostsToLocalStorage();
                 return;
             }
             const existing = posts.find(p => p.id === id);
@@ -794,11 +741,10 @@
                 console.log(`➕ Новый пост ${id} от ${data.author}`);
             }
             if (isLoggedIn) renderPosts();
-            savePostsToLocalStorage();
         });
 
         function savePostToGun(post) {
-            console.log(`💾 Сохраняем пост ${post.id} в Gun...`);
+            console.log(`💾 Сохраняем пост ${post.id}...`);
             postsNode.get(post.id).put({
                 author: post.author,
                 avatar: post.avatar,
@@ -807,7 +753,7 @@
                 likes: post.likes || []
             }, (ack) => {
                 if (ack && ack.err) {
-                    console.error('❌ Ошибка сохранения в Gun:', ack.err);
+                    console.error('❌ Ошибка сохранения:', ack.err);
                 } else {
                     console.log(`✅ Пост ${post.id} успешно сохранён в Gun`);
                 }
@@ -916,7 +862,6 @@
                 likes: post.likes
             });
             renderPosts();
-            savePostsToLocalStorage();
         }
 
         // ===== УДАЛЕНИЕ =====
@@ -925,7 +870,6 @@
                 deletePostFromGun(postId);
                 posts = posts.filter(p => p.id !== postId);
                 renderPosts();
-                savePostsToLocalStorage();
             }
         }
 
@@ -946,8 +890,7 @@
             };
             posts.push(newPost);
             renderPosts();
-            savePostsToLocalStorage(); // сразу сохраняем локально
-            savePostToGun(newPost);    // асинхронно в Gun
+            savePostToGun(newPost);
             postInput.value = '';
             postInput.focus();
             return true;
@@ -969,9 +912,6 @@
             currentUserAvatar = avatarEmoji;
             isLoggedIn = true;
 
-            // Сохраняем пользователя в localStorage
-            saveUserToLocalStorage(avatarEmoji, fullName);
-
             currentUserAvatarEl.textContent = avatarEmoji;
             currentUserNameEl.innerHTML = `${escapeHtml(fullName)} <small id="userStatus"><span class="online-badge" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:4px;"></span> online</small>`;
 
@@ -981,26 +921,19 @@
             filterMyPosts = false;
             filterMyBtn.classList.remove('active');
 
-            // Загружаем посты: сначала из localStorage, потом из Gun
-            const hasLocal = loadPostsFromLocalStorage();
-            if (hasLocal) {
-                renderPosts();
-                // Затем догружаем из Gun (добавит новые)
+            // Загружаем посты из Gun
+            if (posts.length === 0) {
                 loadPostsFromGun();
             } else {
-                // Если локально нет, загружаем из Gun
-                loadPostsFromGun();
-                // Попробуем через некоторое время ещё раз (на случай задержки)
-                setTimeout(() => {
-                    if (posts.length === 0) loadPostsFromGun();
-                }, 2000);
+                renderPosts();
             }
 
-            // Автосинхронизация
+            // Запускаем автосинхронизацию каждые 5 секунд
             if (syncInterval) clearInterval(syncInterval);
             syncInterval = setInterval(() => {
                 console.log('⏰ Автосинхронизация...');
-                // Загружаем новые посты из Gun
+                // Принудительно перезагружаем данные из Gun (но без дублирования)
+                // Просто вызовем loadPostsFromGun (он добавит только новые)
                 loadPostsFromGun();
             }, 5000);
         }
@@ -1021,25 +954,6 @@
             filterMyPosts = false;
             filterMyBtn.classList.remove('active');
             errorMessage.classList.remove('show');
-            // Не очищаем localStorage, чтобы при следующем входе данные остались
-        }
-
-        // ===== ВОССТАНОВЛЕНИЕ СЕССИИ ПРИ ПЕРЕЗАГРУЗКЕ =====
-        function restoreSession() {
-            const userData = loadUserFromLocalStorage();
-            if (userData && userData.fullName && userData.avatar) {
-                // Можно автоматически войти
-                // Но для безопасности пусть пользователь нажимает кнопку, но мы подставим поля
-                firstNameInput.value = userData.fullName.split(' ')[0] || '';
-                lastNameInput.value = userData.fullName.split(' ').slice(1).join(' ') || '';
-                // Выбираем аватар
-                avatarOptions.forEach(opt => {
-                    opt.classList.remove('active');
-                    if (opt.dataset.animal === userData.avatar) opt.classList.add('active');
-                });
-                // Подскажем, что можно нажать "Войти"
-                console.log('👤 Найдены данные пользователя в localStorage. Нажмите "Войти" для восстановления.');
-            }
         }
 
         // ===== ОБРАБОТЧИКИ =====
@@ -1099,11 +1013,9 @@
         });
 
         refreshBtn.addEventListener('click', function() {
-            // Перезагружаем из Gun
+            // Полная перезагрузка всех постов из Gun
             posts = [];
             loadPostsFromGun();
-            // Сохраняем в localStorage после загрузки
-            setTimeout(savePostsToLocalStorage, 500);
             this.style.transform = 'rotate(360deg)';
             setTimeout(() => this.style.transform = '', 400);
         });
@@ -1117,12 +1029,11 @@
         });
 
         forceSyncBtn.addEventListener('click', function() {
-            // Принудительная синхронизация: перезагружаем все посты из Gun и обновляем localStorage
+            // Принудительная синхронизация: перезагружаем все посты
             posts = [];
             loadPostsFromGun();
+            this.textContent = '🔄 Синхронизация...';
             setTimeout(() => {
-                savePostsToLocalStorage();
-                renderPosts();
                 this.textContent = '✅ Готово';
                 setTimeout(() => this.textContent = '☁️ Синхронизировать', 1500);
             }, 1000);
@@ -1133,11 +1044,8 @@
         feed.classList.remove('show');
         document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
 
-        // Восстанавливаем данные пользователя (для удобства)
-        restoreSession();
-
-        console.log('🚀 Саши и Миши v12 — с резервным хранением в localStorage!');
-        console.log('Теперь посты не пропадают при обновлении страницы.');
+        console.log('🚀 Саши и Миши v11 — надёжная синхронизация с 5 ретрансляторами!');
+        console.log('Если друг не видит сообщения, нажмите "Синхронизировать" или обновите страницу.');
     })();
 </script>
 
