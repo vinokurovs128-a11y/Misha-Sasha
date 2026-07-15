@@ -1,2 +1,1001 @@
-# Misha-Sasha
-Социальная сеть, созданная только для Миш и Саш!
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Саши и Миши · история + животные</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+
+    <style>
+        /* ===== все стили как в предыдущей версии ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0b0b0e;
+            color: #f0f0f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background-image: radial-gradient(circle at 20% 30%, #1a1a2e 0%, #0b0b0e 90%);
+        }
+        .app {
+            max-width: 640px;
+            width: 100%;
+            background: rgba(20, 20, 30, 0.55);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            border-radius: 48px;
+            padding: 32px 28px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            transition: all 0.3s ease;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 28px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .brand-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(145deg, #ff6b9d, #c084fc, #60a5fa);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            font-weight: 700;
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(192, 132, 252, 0.3);
+        }
+        .brand h1 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #f9d976, #f39f86, #df8cba);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .brand .online-status {
+            font-weight: 400;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.35);
+            margin-left: auto;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 6px 16px;
+            border-radius: 40px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dot-online { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block; animation: pulse 2s infinite; }
+        .dot-offline { width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block; }
+        @keyframes pulse {
+            0% { opacity: 0.6; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 0.6; transform: scale(0.9); }
+        }
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 0 10px;
+        }
+        .login-screen .subtitle {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.3);
+            margin-bottom: 24px;
+            letter-spacing: 0.3px;
+        }
+        .login-screen .avatar-select {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .login-screen .avatar-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            opacity: 0.5;
+            filter: grayscale(0.6);
+        }
+        .login-screen .avatar-option.active {
+            opacity: 1;
+            filter: grayscale(0);
+            transform: scale(1.05);
+        }
+        .login-screen .avatar-option .circle {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            background: rgba(255,255,255,0.05);
+            border: 3px solid transparent;
+            transition: border 0.3s, box-shadow 0.3s;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        .login-screen .avatar-option.active .circle {
+            border-color: #c084fc;
+            box-shadow: 0 0 30px rgba(192, 132, 252, 0.3);
+        }
+        .login-screen .avatar-option .label {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .login-screen .avatar-option.active .label { color: #fff; }
+        .login-form {
+            width: 100%;
+            max-width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 8px;
+        }
+        .login-form input {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 30px;
+            padding: 14px 22px;
+            font-size: 16px;
+            font-family: 'Inter', sans-serif;
+            color: #f0f0f5;
+            outline: none;
+            transition: border 0.2s, background 0.2s;
+        }
+        .login-form input:focus {
+            border-color: rgba(192, 132, 252, 0.4);
+            background: rgba(255, 255, 255, 0.07);
+        }
+        .login-form input::placeholder { color: rgba(255, 255, 255, 0.2); }
+        .btn-primary {
+            background: linear-gradient(145deg, #c084fc, #8b5cf6);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            font-size: 18px;
+            padding: 16px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 8px 28px rgba(139, 92, 246, 0.35);
+            font-family: 'Inter', sans-serif;
+            width: 100%;
+            margin-top: 6px;
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 36px rgba(139, 92, 246, 0.5);
+            background: linear-gradient(145deg, #d8b4fe, #a78bfa);
+        }
+        .login-hint {
+            margin-top: 18px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 6px 18px;
+            border-radius: 30px;
+            border: 1px dashed rgba(255, 255, 255, 0.04);
+        }
+        .feed { display: none; animation: fadeUp 0.5s ease; }
+        .feed.show { display: block; }
+        @keyframes fadeUp {
+            0% { opacity: 0; transform: translateY(18px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .feed-header .user-block {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .feed-header .user-avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.05);
+            flex-shrink: 0;
+        }
+        .feed-header .user-name {
+            font-weight: 600;
+            font-size: 20px;
+            line-height: 1.2;
+        }
+        .feed-header .user-name small {
+            font-weight: 400;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.25);
+            display: block;
+            margin-top: 2px;
+        }
+        .feed-header .user-stats {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.3);
+            margin-left: 8px;
+        }
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .btn-outline {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.5);
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+            backdrop-filter: blur(4px);
+            white-space: nowrap;
+        }
+        .btn-outline:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+        .btn-outline.active {
+            background: rgba(192, 132, 252, 0.15);
+            border-color: rgba(192, 132, 252, 0.3);
+            color: #c084fc;
+        }
+        .btn-logout {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.4);
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+        }
+        .btn-logout:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+        .post-form {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 32px;
+            padding: 18px 20px 14px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(4px);
+        }
+        .post-form textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            padding: 14px 18px;
+            color: #f0f0f5;
+            font-size: 16px;
+            font-family: 'Inter', sans-serif;
+            resize: vertical;
+            min-height: 70px;
+            transition: border 0.2s;
+            outline: none;
+        }
+        .post-form textarea:focus {
+            border-color: rgba(192, 132, 252, 0.4);
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .post-form textarea::placeholder { color: rgba(255, 255, 255, 0.2); }
+        .post-form .form-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .emoji-picker {
+            display: flex;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 4px 8px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .emoji-btn {
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            transition: 0.15s;
+            padding: 4px 6px;
+            border-radius: 30px;
+            line-height: 1;
+        }
+        .emoji-btn:hover { background: rgba(255, 255, 255, 0.06); transform: scale(1.15); }
+        .btn-post {
+            background: linear-gradient(145deg, #c084fc, #8b5cf6);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 10px 28px;
+            border-radius: 60px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.25s;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+        }
+        .btn-post:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(139, 92, 246, 0.5);
+        }
+        .btn-post:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .post-card {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 28px;
+            padding: 20px 22px 16px;
+            margin-bottom: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
+            animation: cardIn 0.3s ease;
+        }
+        @keyframes cardIn {
+            0% { opacity: 0; transform: translateY(12px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .post-card:hover {
+            background: rgba(255, 255, 255, 0.035);
+            border-color: rgba(255, 255, 255, 0.04);
+        }
+        .post-card .post-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 10px;
+        }
+        .post-card .post-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            background: rgba(255,255,255,0.05);
+            flex-shrink: 0;
+        }
+        .post-card .post-author {
+            font-weight: 600;
+            font-size: 17px;
+        }
+        .post-card .post-author small {
+            font-weight: 400;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.2);
+            margin-left: 6px;
+        }
+        .post-card .post-time {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.18);
+            margin-left: auto;
+        }
+        .post-card .post-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.85);
+            margin: 6px 0 16px;
+            word-break: break-word;
+        }
+        .post-card .post-text iframe {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border-radius: 16px;
+            border: none;
+            margin: 12px 0 6px;
+            background: rgba(0,0,0,0.3);
+        }
+        .post-card .post-footer {
+            display: flex;
+            align-items: center;
+            gap: 28px;
+            border-top: 1px solid rgba(255, 255, 255, 0.03);
+            padding-top: 12px;
+        }
+        .post-card .like-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.25);
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+            padding: 4px 12px 4px 6px;
+            border-radius: 40px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .post-card .like-btn:hover { color: #f472b6; background: rgba(244, 114, 182, 0.06); }
+        .post-card .like-btn.liked { color: #f472b6; }
+        .post-card .like-btn i { font-size: 18px; }
+        .post-card .like-count { font-weight: 500; min-width: 20px; }
+        .post-card .delete-btn {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.08);
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+            padding: 4px 10px;
+            border-radius: 30px;
+        }
+        .post-card .delete-btn:hover { color: rgba(255, 80, 80, 0.6); background: rgba(255, 80, 80, 0.06); }
+        .empty-feed {
+            text-align: center;
+            padding: 50px 20px;
+            color: rgba(255, 255, 255, 0.15);
+        }
+        .empty-feed i { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+        .empty-feed p { font-size: 16px; }
+        .error-message {
+            color: #f87171;
+            font-size: 14px;
+            margin-top: -8px;
+            text-align: center;
+            background: rgba(248, 113, 113, 0.08);
+            padding: 6px 12px;
+            border-radius: 30px;
+            border: 1px solid rgba(248, 113, 113, 0.1);
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+            animation: fadeUp 0.3s ease;
+        }
+        .history-controls {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0 10px;
+        }
+        .history-controls .btn-outline {
+            padding: 8px 20px;
+            font-size: 14px;
+        }
+        @media (max-width: 480px) {
+            .app { padding: 22px 16px; border-radius: 32px; }
+            .brand h1 { font-size: 20px; }
+            .brand .online-status { font-size: 12px; padding: 4px 12px; }
+            .login-screen .avatar-option .circle { width: 60px; height: 60px; font-size: 30px; }
+            .login-screen .avatar-select { gap: 20px; }
+            .login-form { max-width: 100%; }
+            .btn-primary { padding: 14px; font-size: 16px; }
+            .post-form textarea { font-size: 15px; min-height: 60px; }
+            .feed-header .user-name { font-size: 17px; }
+            .header-actions .btn-outline { font-size: 12px; padding: 6px 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+    <div class="brand">
+        <div class="brand-icon">✦</div>
+        <h1>Саши &amp; Миши</h1>
+        <div class="online-status" id="connectionStatus">
+            <span class="dot-online" id="statusDot"></span>
+            <span id="statusText">онлайн</span>
+        </div>
+    </div>
+
+    <!-- ЭКРАН ВХОДА -->
+    <div class="login-screen" id="loginScreen">
+        <div class="subtitle">
+            <i class="fas fa-user-plus" style="margin-right:8px;"></i> выбери персонажа и аватарку
+        </div>
+        <div class="avatar-select" id="avatarSelect">
+            <div class="avatar-option active" data-animal="🐱">
+                <div class="circle" style="background: rgba(255,200,200,0.15);">🐱</div>
+                <span class="label">Кошка</span>
+            </div>
+            <div class="avatar-option" data-animal="🐶">
+                <div class="circle" style="background: rgba(200,200,255,0.15);">🐶</div>
+                <span class="label">Собака</span>
+            </div>
+            <div class="avatar-option" data-animal="🐒">
+                <div class="circle" style="background: rgba(200,255,200,0.15);">🐒</div>
+                <span class="label">Обезьяна</span>
+            </div>
+        </div>
+        <div class="login-form">
+            <input type="text" id="firstNameInput" placeholder="Имя (Саша, Миша...)" value="Александр" />
+            <input type="text" id="lastNameInput" placeholder="Фамилия" value="Иванов" />
+            <div class="error-message" id="errorMessage">⚠️ Имя должно быть Саша или Миша (или производные)</div>
+            <button class="btn-primary" id="loginBtn">
+                <i class="fas fa-arrow-right" style="margin-right:10px;"></i> Войти
+            </button>
+        </div>
+        <div class="login-hint">
+            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> только для Саш и Миш · реальный онлайн
+        </div>
+    </div>
+
+    <!-- ЛЕНТА -->
+    <div class="feed" id="feed">
+
+        <div class="feed-header">
+            <div class="user-block">
+                <div class="user-avatar" id="currentUserAvatar">🐱</div>
+                <div>
+                    <div class="user-name" id="currentUserName">
+                        Александр Иванов
+                        <small id="userStatus"><span class="online-badge" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:4px;"></span> online</small>
+                    </div>
+                    <div class="user-stats" id="userStats">
+                        <i class="fas fa-pencil-alt" style="margin-right:4px;"></i> постов: <span id="postCount">0</span>
+                        <span style="margin-left:12px; opacity:0.5;">| всего: <span id="totalCount">0</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-outline" id="filterMyBtn"><i class="fas fa-user"></i> Мои</button>
+                <button class="btn-outline" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
+                <button class="btn-logout" id="logoutBtn"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i> Выйти</button>
+            </div>
+        </div>
+
+        <div class="post-form">
+            <textarea id="postInput" placeholder="Что нового? Вставь ссылку на YouTube — будет видео 🔥" rows="2"></textarea>
+            <div class="form-toolbar">
+                <div class="emoji-picker" id="emojiPicker">
+                    <button class="emoji-btn" data-emoji="❤️">❤️</button>
+                    <button class="emoji-btn" data-emoji="😂">😂</button>
+                    <button class="emoji-btn" data-emoji="😍">😍</button>
+                    <button class="emoji-btn" data-emoji="🔥">🔥</button>
+                    <button class="emoji-btn" data-emoji="🎉">🎉</button>
+                </div>
+                <button class="btn-post" id="postBtn"><i class="fas fa-pen" style="margin-right:8px;"></i> Опубликовать</button>
+            </div>
+        </div>
+
+        <div id="postsContainer">
+            <div class="empty-feed" id="emptyFeed">
+                <i class="fas fa-comment-dots"></i>
+                <p>Пока нет постов. Будь первым!</p>
+            </div>
+        </div>
+
+        <!-- Кнопка для загрузки всей истории (по умолчанию все посты уже видны, но добавим для уверенности) -->
+        <div class="history-controls">
+            <button class="btn-outline" id="showAllBtn"><i class="fas fa-history"></i> Показать всю историю</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    (function() {
+        'use strict';
+
+        // ===== GUN =====
+        const gun = Gun({
+            peers: ['https://gun-manhattan.herokuapp.com/gun']
+        });
+        const postsNode = gun.get('sasha_misha_posts');
+
+        // ===== СОСТОЯНИЕ =====
+        let currentUserAvatar = '🐱';
+        let currentUserFullName = '';
+        let filterMyPosts = false;
+        let posts = [];
+        let isLoggedIn = false;
+
+        // ===== DOM =====
+        const loginScreen = document.getElementById('loginScreen');
+        const feed = document.getElementById('feed');
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const showAllBtn = document.getElementById('showAllBtn');
+        const avatarOptions = document.querySelectorAll('.avatar-option');
+        const firstNameInput = document.getElementById('firstNameInput');
+        const lastNameInput = document.getElementById('lastNameInput');
+        const errorMessage = document.getElementById('errorMessage');
+        const currentUserAvatarEl = document.getElementById('currentUserAvatar');
+        const currentUserNameEl = document.getElementById('currentUserName');
+        const postCountEl = document.getElementById('postCount');
+        const totalCountEl = document.getElementById('totalCount');
+        const postInput = document.getElementById('postInput');
+        const postBtn = document.getElementById('postBtn');
+        const postsContainer = document.getElementById('postsContainer');
+        const emptyFeed = document.getElementById('emptyFeed');
+        const filterMyBtn = document.getElementById('filterMyBtn');
+        const emojiPicker = document.getElementById('emojiPicker');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        // ===== СТАТУС =====
+        function setOnlineStatus(online) {
+            statusDot.className = online ? 'dot-online' : 'dot-offline';
+            statusText.textContent = online ? 'онлайн' : 'офлайн';
+        }
+        gun.on('hi', () => setOnlineStatus(true));
+        gun.on('bye', () => setOnlineStatus(false));
+        setInterval(() => {
+            gun.get('_ping').put({ time: Date.now() }, () => {});
+        }, 15000);
+
+        // ===== ВСПОМОГАТЕЛЬНЫЕ =====
+        function formatTime(ts) {
+            const d = new Date(ts);
+            return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        }
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        function renderPostText(text) {
+            let safe = escapeHtml(text);
+            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
+            safe = safe.replace(youtubeRegex, (match, videoId) => {
+                return `<iframe src="https://www.youtube.com/embed/${videoId}" allowfullscreen></iframe>`;
+            });
+            return safe;
+        }
+
+        // ===== ПРОВЕРКА ИМЕНИ =====
+        function isValidName(firstName) {
+            const lower = firstName.toLowerCase().trim();
+            return lower.startsWith('саш') || lower === 'александр' || lower === 'саня' ||
+                   lower.startsWith('миш') || lower === 'михаил' || lower === 'митя';
+        }
+
+        // ===== РАБОТА С GUN =====
+        function loadPostsFromGun() {
+            postsNode.map().once((data, id) => {
+                if (data) {
+                    const exists = posts.some(p => p.id === id);
+                    if (!exists) {
+                        const post = {
+                            id: id,
+                            author: data.author || 'Неизвестный',
+                            avatar: data.avatar || '🐱',
+                            text: data.text || '',
+                            timestamp: data.timestamp || Date.now(),
+                            likes: data.likes || []
+                        };
+                        posts.push(post);
+                        if (isLoggedIn) renderPosts();
+                    }
+                }
+            });
+        }
+
+        postsNode.map().on((data, id) => {
+            if (!data) {
+                posts = posts.filter(p => p.id !== id);
+                if (isLoggedIn) renderPosts();
+                return;
+            }
+            const existing = posts.find(p => p.id === id);
+            if (existing) {
+                existing.author = data.author || existing.author;
+                existing.avatar = data.avatar || existing.avatar;
+                existing.text = data.text || existing.text;
+                existing.timestamp = data.timestamp || existing.timestamp;
+                existing.likes = data.likes || [];
+            } else {
+                posts.push({
+                    id: id,
+                    author: data.author || 'Неизвестный',
+                    avatar: data.avatar || '🐱',
+                    text: data.text || '',
+                    timestamp: data.timestamp || Date.now(),
+                    likes: data.likes || []
+                });
+            }
+            if (isLoggedIn) renderPosts();
+        });
+
+        function savePostToGun(post) {
+            postsNode.get(post.id).put({
+                author: post.author,
+                avatar: post.avatar,
+                text: post.text,
+                timestamp: post.timestamp,
+                likes: post.likes || []
+            });
+        }
+
+        function deletePostFromGun(postId) {
+            postsNode.get(postId).put(null);
+        }
+
+        // ===== РЕНДЕР =====
+        function renderPosts() {
+            // очищаем
+            const children = postsContainer.children;
+            for (let i = children.length - 1; i >= 0; i--) {
+                if (children[i].id !== 'emptyFeed') {
+                    children[i].remove();
+                }
+            }
+
+            let filtered = [...posts];
+            if (filterMyPosts && currentUserFullName) {
+                filtered = filtered.filter(p => p.author === currentUserFullName);
+            }
+            filtered.sort((a, b) => b.timestamp - a.timestamp);
+
+            // Обновляем счётчики
+            totalCountEl.textContent = posts.length;
+
+            if (filtered.length === 0) {
+                emptyFeed.style.display = 'block';
+                emptyFeed.querySelector('p').textContent = filterMyPosts ? 'У тебя пока нет постов 😢' : 'Пока нет постов. Будь первым!';
+                updateStats();
+                return;
+            }
+            emptyFeed.style.display = 'none';
+
+            filtered.forEach((post) => {
+                const card = document.createElement('div');
+                card.className = 'post-card';
+                card.dataset.id = post.id;
+
+                const isAuthor = post.author === currentUserFullName;
+                const avatarEmoji = post.avatar || '🐱';
+                const renderedText = renderPostText(post.text);
+
+                card.innerHTML = `
+                    <div class="post-header">
+                        <div class="post-avatar" style="background: rgba(255,255,255,0.05);">${avatarEmoji}</div>
+                        <span class="post-author">${escapeHtml(post.author)} <small>${avatarEmoji}</small></span>
+                        <span class="post-time">${formatTime(post.timestamp)}</span>
+                    </div>
+                    <div class="post-text">${renderedText}</div>
+                    <div class="post-footer">
+                        <button class="like-btn ${post.likes.includes(currentUserFullName) ? 'liked' : ''}" data-postid="${post.id}">
+                            <i class="fas fa-heart"></i>
+                            <span class="like-count">${post.likes.length}</span>
+                        </button>
+                        ${isAuthor ? `<button class="delete-btn" data-postid="${post.id}"><i class="fas fa-trash-alt"></i></button>` : ''}
+                    </div>
+                `;
+
+                postsContainer.appendChild(card);
+
+                const likeBtn = card.querySelector('.like-btn');
+                if (likeBtn) {
+                    likeBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const id = this.dataset.postid;
+                        toggleLike(id);
+                    });
+                }
+                const deleteBtn = card.querySelector('.delete-btn');
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const id = this.dataset.postid;
+                        deletePost(id);
+                    });
+                }
+            });
+
+            updateStats();
+        }
+
+        function updateStats() {
+            if (!currentUserFullName) return;
+            const myPosts = posts.filter(p => p.author === currentUserFullName).length;
+            postCountEl.textContent = myPosts;
+        }
+
+        // ===== ЛАЙК =====
+        function toggleLike(postId) {
+            const post = posts.find(p => p.id === postId);
+            if (!post) return;
+            const idx = post.likes.indexOf(currentUserFullName);
+            if (idx === -1) post.likes.push(currentUserFullName);
+            else post.likes.splice(idx, 1);
+            postsNode.get(postId).put({
+                author: post.author,
+                avatar: post.avatar,
+                text: post.text,
+                timestamp: post.timestamp,
+                likes: post.likes
+            });
+            renderPosts();
+        }
+
+        // ===== УДАЛЕНИЕ =====
+        function deletePost(postId) {
+            if (confirm('Удалить пост?')) {
+                deletePostFromGun(postId);
+                posts = posts.filter(p => p.id !== postId);
+                renderPosts();
+            }
+        }
+
+        // ===== ДОБАВЛЕНИЕ =====
+        function addPost(text) {
+            const trimmed = text.trim();
+            if (!trimmed) { alert('Напишите что-нибудь!'); return false; }
+            if (trimmed.length > 500) { alert('Максимум 500 символов'); return false; }
+            if (!currentUserFullName) { alert('Сначала войдите!'); return false; }
+
+            const newPost = {
+                id: Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+                author: currentUserFullName,
+                avatar: currentUserAvatar,
+                text: trimmed,
+                timestamp: Date.now(),
+                likes: []
+            };
+            posts.push(newPost);
+            renderPosts();
+            savePostToGun(newPost);
+            postInput.value = '';
+            postInput.focus();
+            return true;
+        }
+
+        // ===== ВХОД =====
+        function login(avatarEmoji, firstName, lastName) {
+            const name = firstName.trim();
+            const surname = lastName.trim() || '';
+            if (!isValidName(name)) {
+                errorMessage.textContent = '⚠️ Имя должно быть Саша или Миша (или производные: Александр, Михаил, Саня, Митя)';
+                errorMessage.classList.add('show');
+                return;
+            }
+            errorMessage.classList.remove('show');
+
+            const fullName = surname ? `${name} ${surname}` : name;
+            currentUserFullName = fullName;
+            currentUserAvatar = avatarEmoji;
+            isLoggedIn = true;
+
+            currentUserAvatarEl.textContent = avatarEmoji;
+            currentUserNameEl.innerHTML = `${escapeHtml(fullName)} <small id="userStatus"><span class="online-badge" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:4px;"></span> online</small>`;
+
+            loginScreen.style.display = 'none';
+            feed.classList.add('show');
+            postInput.value = '';
+            filterMyPosts = false;
+            filterMyBtn.classList.remove('active');
+
+            if (posts.length === 0) loadPostsFromGun();
+            else renderPosts();
+        }
+
+        // ===== ВЫХОД =====
+        function logout() {
+            isLoggedIn = false;
+            loginScreen.style.display = 'flex';
+            feed.classList.remove('show');
+            avatarOptions.forEach(opt => opt.classList.remove('active'));
+            document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
+            currentUserAvatar = '🐱';
+            currentUserFullName = '';
+            filterMyPosts = false;
+            filterMyBtn.classList.remove('active');
+            errorMessage.classList.remove('show');
+        }
+
+        // ===== ОБРАБОТЧИКИ =====
+        avatarOptions.forEach(opt => {
+            opt.addEventListener('click', function() {
+                avatarOptions.forEach(o => o.classList.remove('active'));
+                this.classList.add('active');
+                errorMessage.classList.remove('show');
+            });
+        });
+
+        loginBtn.addEventListener('click', function() {
+            const active = document.querySelector('.avatar-option.active');
+            if (!active) return;
+            const avatar = active.dataset.animal;
+            const firstName = firstNameInput.value;
+            const lastName = lastNameInput.value;
+            if (!firstName.trim()) { alert('Введите имя!'); return; }
+            login(avatar, firstName, lastName);
+        });
+
+        logoutBtn.addEventListener('click', logout);
+
+        postBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            addPost(postInput.value);
+        });
+
+        postInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+                e.preventDefault();
+                addPost(this.value);
+            } else if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                addPost(this.value);
+            }
+        });
+
+        filterMyBtn.addEventListener('click', function() {
+            if (!currentUserFullName) return;
+            filterMyPosts = !filterMyPosts;
+            this.classList.toggle('active');
+            renderPosts();
+        });
+
+        emojiPicker.addEventListener('click', function(e) {
+            const btn = e.target.closest('.emoji-btn');
+            if (!btn) return;
+            const emoji = btn.dataset.emoji;
+            const textarea = postInput;
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const val = textarea.value;
+            textarea.value = val.substring(0, start) + emoji + val.substring(end);
+            textarea.focus();
+            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        });
+
+        refreshBtn.addEventListener('click', function() {
+            posts = [];
+            loadPostsFromGun();
+            this.style.transform = 'rotate(360deg)';
+            setTimeout(() => this.style.transform = '', 400);
+        });
+
+        showAllBtn.addEventListener('click', function() {
+            // Просто перерендерим всё (все посты уже видны, но для уверенности сбросим фильтр)
+            filterMyPosts = false;
+            filterMyBtn.classList.remove('active');
+            renderPosts();
+            this.textContent = '✅ Вся история загружена';
+            setTimeout(() => this.textContent = '📜 Показать всю историю', 2000);
+        });
+
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        loginScreen.style.display = 'flex';
+        feed.classList.remove('show');
+        document.querySelector('.avatar-option[data-animal="🐱"]').classList.add('active');
+
+        console.log('🚀 Саши и Миши v10 — с историей и животными!');
+        console.log('Все сообщения сохраняются в Gun и доступны при перезагрузке.');
+    })();
+</script>
+
+</body>
+</html>
