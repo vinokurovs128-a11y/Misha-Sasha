@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Саши и Миши · чистота и надёжность</title>
+    <title>Саши и Миши · суперстабильная</title>
 
     <script src="https://cdn.jsdelivr.net/npm/gun@0.9/gun.js"></script>
 
@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 
     <style>
-        /* ===== Стили (прежние) ===== */
+        /* ===== Все стили как в предыдущей версии (сокращены для экономии места) ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
@@ -515,6 +515,23 @@
             animation: fadeUp 0.3s ease;
         }
 
+        /* Тестовая кнопка */
+        .test-btn {
+            background: rgba(255,255,255,0.02);
+            border: 1px dashed rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.3);
+            padding: 4px 12px;
+            border-radius: 30px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+        }
+        .test-btn:hover {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.6);
+        }
+
         @media (max-width: 480px) {
             .app { padding: 22px 16px; border-radius: 32px; }
             .brand h1 { font-size: 20px; }
@@ -540,6 +557,7 @@
             <span class="dot-offline" id="statusDot"></span>
             <span id="statusText">офлайн</span>
             <button class="reconnect-btn" id="reconnectBtn">⟳</button>
+            <button class="test-btn" id="testBtn">Тест</button>
         </div>
     </div>
 
@@ -571,7 +589,7 @@
             </button>
         </div>
         <div class="login-hint">
-            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> только для Саш и Миш · автообновление 2 сек
+            <i class="fas fa-shield-alt" style="margin-right:6px;"></i> только для Саш и Миш · автообновление 1 сек
         </div>
     </div>
 
@@ -595,7 +613,7 @@
             <div class="header-actions">
                 <button class="btn-outline" id="filterMyBtn"><i class="fas fa-user"></i> Мои</button>
                 <button class="btn-outline" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
-                <button class="btn-outline btn-danger" id="clearChatBtn"><i class="fas fa-trash-alt"></i> Очистить чат</button>
+                <button class="btn-outline btn-danger" id="clearChatBtn"><i class="fas fa-trash-alt"></i> Очистить</button>
                 <button class="btn-logout" id="logoutBtn"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i> Выйти</button>
             </div>
         </div>
@@ -629,14 +647,13 @@
         'use strict';
 
         // ============================================================
-        // 1. НАДЁЖНЫЕ РЕТРАНСЛЯТОРЫ (для Firefox и других)
+        // 1. РЕТРАНСЛЯТОРЫ (надёжные)
         // ============================================================
         const peers = [
             'https://gun.eco/radata',
             'https://gun-manhattan.herokuapp.com/gun',
             'https://gun-us.herokuapp.com/gun',
-            'https://gun-eu.herokuapp.com/gun',
-            'https://gun-nyc.herokuapp.com/gun'
+            'https://gun-eu.herokuapp.com/gun'
         ];
 
         let gun = Gun({ peers });
@@ -649,6 +666,7 @@
         let posts = [];
         let filterMy = false;
         let isLoggedIn = false;
+        let isSending = false; // блокировка повторной отправки
 
         // ============================================================
         // 3. DOM
@@ -660,6 +678,7 @@
         const refreshBtn = document.getElementById('refreshBtn');
         const reconnectBtn = document.getElementById('reconnectBtn');
         const clearChatBtn = document.getElementById('clearChatBtn');
+        const testBtn = document.getElementById('testBtn');
         const avatarOptions = document.querySelectorAll('.avatar-option');
         const firstNameInput = document.getElementById('firstNameInput');
         const lastNameInput = document.getElementById('lastNameInput');
@@ -681,57 +700,46 @@
         // 4. СТАТУС
         // ============================================================
         let isOnline = false;
-        let connectionAttempts = 0;
 
         function setStatus(online) {
             isOnline = online;
-            if (online) {
-                statusDot.className = 'dot-online';
-                statusText.textContent = 'онлайн';
-                connectionAttempts = 0;
-            } else {
-                statusDot.className = 'dot-offline';
-                statusText.textContent = 'офлайн';
-                if (connectionAttempts < 5) {
-                    connectionAttempts++;
-                    setTimeout(() => {
-                        gun = Gun({ peers });
-                        postsNode = gun.get('sasha_misha_posts');
-                        subscribeToGun();
-                        gun.get('_ping').put({ time: Date.now() }, (ack) => {
-                            if (!ack || !ack.err) setStatus(true);
-                        });
-                    }, 5000);
-                } else {
-                    statusText.textContent = 'офлайн (повторите)';
-                }
-            }
+            statusDot.className = online ? 'dot-online' : 'dot-offline';
+            statusText.textContent = online ? 'онлайн' : 'офлайн';
         }
 
         gun.on('hi', () => setStatus(true));
         gun.on('bye', () => setStatus(false));
 
-        let pingInterval = setInterval(() => {
+        // Пинг каждые 5 секунд
+        setInterval(() => {
             if (gun) {
                 gun.get('_ping').put({ time: Date.now() }, (ack) => {
                     if (ack && ack.err) setStatus(false);
                     else setStatus(true);
                 });
             }
-        }, 10000);
+        }, 5000);
 
         reconnectBtn.addEventListener('click', function() {
             setStatus(false);
-            connectionAttempts = 0;
             gun = Gun({ peers });
             postsNode = gun.get('sasha_misha_posts');
             subscribeToGun();
             gun.get('_ping').put({ time: Date.now() }, (ack) => {
                 if (!ack || !ack.err) setStatus(true);
-                else setStatus(false);
             });
-            this.textContent = '⟳';
-            setTimeout(() => { this.textContent = '⟳'; }, 1000);
+        });
+
+        // Тест соединения
+        testBtn.addEventListener('click', function() {
+            if (!gun) { alert('Gun не инициализирован'); return; }
+            gun.get('_test').put({ time: Date.now() }, (ack) => {
+                if (ack && ack.err) {
+                    alert('❌ Ошибка: ' + ack.err);
+                } else {
+                    alert('✅ Gun работает!');
+                }
+            });
         });
 
         // ============================================================
@@ -801,6 +809,11 @@
             if (!trimmed) { alert('Напишите что-нибудь!'); return false; }
             if (trimmed.length > 500) { alert('Максимум 500 символов'); return false; }
             if (!isLoggedIn) { alert('Сначала войдите!'); return false; }
+            if (isSending) { return false; }
+
+            isSending = true;
+            postBtn.disabled = true;
+            postBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
 
             const newPost = {
                 id: Date.now() + '-' + Math.random().toString(36).substr(2, 6),
@@ -810,10 +823,13 @@
                 timestamp: Date.now(),
                 likes: []
             };
+
+            // Добавляем локально
             posts.push(newPost);
             renderPosts();
             saveToLocalStorage();
 
+            // Отправляем в Gun
             if (postsNode) {
                 postsNode.get(newPost.id).put({
                     author: newPost.author,
@@ -821,7 +837,22 @@
                     text: newPost.text,
                     timestamp: newPost.timestamp,
                     likes: newPost.likes
+                }, (ack) => {
+                    isSending = false;
+                    postBtn.disabled = false;
+                    postBtn.innerHTML = '<i class="fas fa-pen" style="margin-right:8px;"></i> Опубликовать';
+                    if (ack && ack.err) {
+                        console.error('Ошибка сохранения в Gun:', ack.err);
+                        alert('Ошибка сохранения, но сообщение сохранено локально. Проверьте интернет.');
+                    } else {
+                        console.log('✅ Пост сохранён в Gun:', newPost.id);
+                    }
                 });
+            } else {
+                isSending = false;
+                postBtn.disabled = false;
+                postBtn.innerHTML = '<i class="fas fa-pen" style="margin-right:8px;"></i> Опубликовать';
+                alert('Нет соединения с Gun, но пост сохранён локально');
             }
 
             postInput.value = '';
@@ -860,25 +891,20 @@
         // 8. ОЧИСТКА ВСЕГО ЧАТА
         // ============================================================
         function clearAllChat() {
-            if (!confirm('Вы уверены, что хотите удалить ВСЕ сообщения у всех участников? Это действие необратимо!')) return;
-            // Очищаем локальный массив
+            if (!confirm('Удалить ВСЕ сообщения у всех участников?')) return;
             posts = [];
             renderPosts();
             saveToLocalStorage();
-            // Удаляем все записи из Gun
             if (postsNode) {
-                // Получаем все ключи и удаляем их
                 postsNode.map().once((data, id) => {
-                    if (id) {
-                        postsNode.get(id).put(null);
-                    }
+                    if (id) postsNode.get(id).put(null);
                 });
             }
             alert('Чат очищен!');
         }
 
         // ============================================================
-        // 9. ЗАГРУЗКА НОВЫХ ПОСТОВ ИЗ GUN (АВТООПРОС)
+        // 9. ЗАГРУЗКА НОВЫХ ПОСТОВ ИЗ GUN (автоопрос)
         // ============================================================
         function loadNewPostsFromGun() {
             if (!postsNode || !isLoggedIn) return;
@@ -897,12 +923,13 @@
                     posts.push(post);
                     renderPosts();
                     saveToLocalStorage();
+                    console.log('🔄 Автообновление: новый пост от', post.author);
                 }
             });
         }
 
         // ============================================================
-        // 10. ПОДПИСКА НА ИЗМЕНЕНИЯ (дополнительно)
+        // 10. ПОДПИСКА НА ИЗМЕНЕНИЯ (реалтайм)
         // ============================================================
         function subscribeToGun() {
             if (!postsNode) return;
@@ -938,13 +965,13 @@
         subscribeToGun();
 
         // ============================================================
-        // 11. АВТООБНОВЛЕНИЕ КАЖДЫЕ 2 СЕКУНДЫ
+        // 11. АВТООБНОВЛЕНИЕ КАЖДУЮ СЕКУНДУ (самая частая проверка)
         // ============================================================
-        let autoRefreshInterval = setInterval(() => {
+        setInterval(() => {
             if (isLoggedIn) {
                 loadNewPostsFromGun();
             }
-        }, 2000);
+        }, 1000);
 
         // ============================================================
         // 12. РЕНДЕР
@@ -1165,8 +1192,8 @@
 
         restoreSession();
 
-        console.log('🚀 Саши и Миши v18 — с очисткой чата и поддержкой Firefox');
-        console.log('Кнопка "Очистить чат" удаляет все сообщения у всех участников.');
+        console.log('🚀 Саши и Миши v19 — суперстабильная с автопроверкой каждую секунду');
+        console.log('Если сообщения не приходят — нажмите кнопку "Тест" для диагностики.');
     })();
 </script>
 
